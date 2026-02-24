@@ -1,0 +1,253 @@
+{
+  "schemaVersion": "1.0.0",
+  "projectStateVersion": 13,
+  "summary": "Mobile app for managing and allocating players in a pickleball game session. Hosts can configure courts and manually add players. Skill level is determined by DUPR rating. The app automatically (randomly) allocates players to courts — the host does not manually assign them. Session codes allow players to join. Optional match history recording is supported.",
+  "architectural_notes": [
+    "Mobile app (iOS/Android) targeting pickleball session management",
+    "Session-based architecture: host creates session with a code, players join via code",
+    "Skill level determined by DUPR rating (not self-reported or win/loss history)",
+    "App automatically allocates players to courts randomly; host does not manually assign court positions",
+    "Host can manually add players to a session (in addition to join-code flow)"
+  ],
+  "known_issues": [
+    "Profile creation fails with 'Failed to create profile. Please try again.' error",
+    "Session creation fails with 'Failed to create a session' error"
+  ],
+  "isFixRequest": true,
+  "existing_features": [
+    {
+      "id": "feature-design-a-mobile-first-visual-theme-with-a-sporty-energetic-aesthetic-using-green-and-yellow-tones-inspired-by-pickleball-court-colors-apply-consistent-typography-card-based-layouts-bold-iconography-and-smooth-interactions-throughout-the-app-the-ui-should-feel-clean-and-approachable-for-casual-sports-players",
+      "title": "Design a mobile-first visual theme with a sporty, energetic aesthetic using green and yellow tones inspired by pickleball court colors. Apply consistent typography, card-based layouts, bold iconography, and smooth interactions throughout the app. The UI should feel clean and approachable for casual sports players.",
+      "reqIds": [
+        "REQ-1"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-a-player-profile-and-signup-system-players-can-create-a-profile-with-a-name-and-optional-skill-level-beginner-intermediate-advanced-profiles-are-stored-in-the-backend-and-associated-with-a-player-id",
+      "title": "Implement a player profile and signup system. Players can create a profile with a name and optional skill level (Beginner, Intermediate, Advanced). Profiles are stored in the backend and associated with a player ID.",
+      "reqIds": [
+        "REQ-2"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-a-session-creation-flow-for-hosts-a-host-can-create-a-game-session-which-generates-a-unique-shareable-alphanumeric-session-code-the-session-stores-configuration-including-number-of-courts-allocation-mode-and-time-frame-the-backend-stores-and-manages-active-sessions",
+      "title": "Implement a session creation flow for hosts. A host can create a game session which generates a unique, shareable alphanumeric session code. The session stores configuration including number of courts, allocation mode, and time frame. The backend stores and manages active sessions.",
+      "reqIds": [
+        "REQ-3"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-allow-players-to-join-an-existing-session-by-entering-a-session-code-on-join-the-player-is-added-to-the-session-s-player-roster-the-player-list-for-the-session-is-visible-to-all-participants",
+      "title": "Allow players to join an existing session by entering a session code. On join, the player is added to the session's player roster. The player list for the session is visible to all participants.",
+      "reqIds": [
+        "REQ-4"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-host-configuration-panel-within-session-creation-for-selecting-the-number-of-courts-1-10-and-choosing-the-player-allocation-mode-skill-based-or-random",
+      "title": "Add a host configuration panel within session creation for selecting the number of courts (1–10) and choosing the player allocation mode: Skill-Based or Random.",
+      "reqIds": [
+        "REQ-5"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-a-player-allocation-engine-in-the-backend-when-the-host-triggers-allocation-assign-players-to-courts-based-on-the-selected-mode-in-random-mode-players-are-shuffled-and-evenly-distributed-in-skill-based-mode-players-are-sorted-by-skill-rating-and-distributed-to-create-balanced-matches-each-court-supports-exactly-4-players-for-a-standard-doubles-game",
+      "title": "Implement a player allocation engine in the backend. When the host triggers allocation, assign players to courts based on the selected mode. In Random mode, players are shuffled and evenly distributed. In Skill-Based mode, players are sorted by skill rating and distributed to create balanced matches. Each court supports exactly 4 players for a standard doubles game.",
+      "reqIds": [
+        "REQ-6"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-support-a-waitlist-rotation-system-when-more-players-are-present-than-the-courts-can-accommodate-extra-players-are-placed-on-a-waitlist-and-rotated-in-after-each-round-the-host-can-see-the-waitlist-and-manage-rotations",
+      "title": "Support a waitlist/rotation system when more players are present than the courts can accommodate. Extra players are placed on a waitlist and rotated in after each round. The host can see the waitlist and manage rotations.",
+      "reqIds": [
+        "REQ-7"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-time-frame-and-game-scheduling-tool-in-session-setup-the-host-inputs-the-total-available-time-in-minutes-and-estimated-time-per-game-in-minutes-the-app-calculates-and-displays-the-maximum-number-of-games-possible-across-all-courts-within-that-time-frame",
+      "title": "Add a time-frame and game scheduling tool in session setup. The host inputs the total available time (in minutes) and estimated time per game (in minutes). The app calculates and displays the maximum number of games possible across all courts within that time frame.",
+      "reqIds": [
+        "REQ-8"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-optional-match-history-recording-after-a-game-players-can-optionally-submit-match-results-win-loss-linked-to-their-player-profile-and-session-the-backend-stores-match-history-per-player-and-uses-win-loss-records-to-calculate-a-basic-skill-rating-that-influences-skill-based-allocation",
+      "title": "Implement optional match history recording. After a game, players can optionally submit match results (win/loss) linked to their player profile and session. The backend stores match history per player and uses win/loss records to calculate a basic skill rating that influences skill-based allocation.",
+      "reqIds": [
+        "REQ-9"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-build-a-session-management-dashboard-for-the-host-that-shows-session-code-court-assignments-player-roster-waitlist-game-schedule-info-and-controls-to-trigger-allocation-advance-rotation-and-close-the-session",
+      "title": "Build a session management dashboard for the host that shows: session code, court assignments, player roster, waitlist, game schedule info, and controls to trigger allocation, advance rotation, and close the session.",
+      "reqIds": [
+        "REQ-10"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-create-a-player-facing-session-view-showing-their-current-court-assignment-teammates-match-result-submission-option-and-their-personal-stats-skill-level-win-loss-record",
+      "title": "Create a player-facing session view showing their current court assignment, teammates, match result submission option, and their personal stats (skill level, win/loss record).",
+      "reqIds": [
+        "REQ-11"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-remove-the-total-available-time-and-game-duration-fields-from-session-creation-and-all-related-ui-remove-the-gamescheduleinfo-component-from-the-host-dashboard-and-any-other-views-where-it-appears-remove-the-calculated-max-games-display-entirely",
+      "title": "Remove the total available time and game duration fields from session creation and all related UI. Remove the GameScheduleInfo component from the host dashboard and any other views where it appears. Remove the calculated max-games display entirely.",
+      "reqIds": [
+        "REQ-12"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-replace-the-skill-level-selector-beginner-intermediate-advanced-on-the-player-profile-with-a-dupr-rating-input-field-dupr-rating-is-a-numeric-value-e-g-2-00-8-00-store-the-dupr-rating-in-the-player-profile-on-the-backend-and-use-it-wherever-skill-level-was-previously-displayed-or-used-for-allocation-logic",
+      "title": "Replace the skill level selector (Beginner / Intermediate / Advanced) on the player profile with a DUPR rating input field. DUPR rating is a numeric value (e.g. 2.00–8.00). Store the DUPR rating in the player profile on the backend and use it wherever skill level was previously displayed or used for allocation logic.",
+      "reqIds": [
+        "REQ-13"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-host-only-add-player-control-on-the-host-session-dashboard-that-allows-the-host-to-manually-add-a-player-to-the-current-session-by-entering-the-player-s-name-and-optional-dupr-rating-the-added-player-appears-in-the-session-s-player-roster-immediately-the-backend-must-support-a-host-invoked-add-player-action",
+      "title": "Add a host-only 'Add Player' control on the host session dashboard that allows the host to manually add a player to the current session by entering the player's name and optional DUPR rating. The added player appears in the session's player roster immediately. The backend must support a host-invoked add-player action.",
+      "reqIds": [
+        "REQ-14"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-change-the-player-allocation-behavior-so-that-the-app-always-uses-random-allocation-when-the-host-triggers-allocate-players-remove-the-allocation-mode-selector-skill-based-vs-random-from-session-creation-and-the-host-dashboard-the-app-automatically-and-randomly-distributes-players-to-courts-the-host-does-not-choose-the-mode",
+      "title": "Change the player allocation behavior so that the app always uses random allocation when the host triggers 'Allocate Players'. Remove the allocation mode selector (Skill-Based vs Random) from session creation and the host dashboard. The app automatically and randomly distributes players to courts — the host does not choose the mode.",
+      "reqIds": [
+        "REQ-15"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-display-player-names-visibly-in-all-court-assignment-result-views-player-names-must-be-clearly-shown-on-court-cards-for-both-the-host-dashboard-and-the-player-facing-session-view-no-player-slot-should-display-an-empty-or-anonymous-label-when-a-player-name-is-available",
+      "title": "Display player names visibly in all court assignment result views. Player names must be clearly shown on court cards for both the host dashboard and the player-facing session view. No player slot should display an empty or anonymous label when a player name is available.",
+      "reqIds": [
+        "REQ-16"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-display-all-possible-game-matchups-court-assignments-across-all-rounds-that-can-be-generated-from-the-current-player-roster-and-court-count-on-the-host-dashboard-after-allocation-show-a-schedule-overview-panel-listing-each-round-s-court-assignments-so-the-host-can-see-all-planned-games-at-a-glance",
+      "title": "Display all possible game matchups (court assignments across all rounds) that can be generated from the current player roster and court count on the host dashboard. After allocation, show a schedule/overview panel listing each round's court assignments so the host can see all planned games at a glance.",
+      "reqIds": [
+        "REQ-18"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-investigate-and-fix-the-bug-causing-profile-creation-to-fail-with-the-error-failed-to-create-profile-please-try-again-on-the-profilesetup-page-ensure-that-submitting-a-valid-name-and-optional-dupr-rating-successfully-creates-and-persists-the-player-profile-both-in-local-storage-and-via-any-backend-call-then-navigates-the-user-to-the-intended-next-route-without-error",
+      "title": "Investigate and fix the bug causing profile creation to fail with the error 'Failed to create profile. Please try again.' on the ProfileSetup page. Ensure that submitting a valid name (and optional DUPR rating) successfully creates and persists the player profile both in local storage and via any backend call, then navigates the user to the intended next route without error.",
+      "reqIds": [
+        "REQ-19"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-create-a-login-page-as-the-app-s-entry-point-the-page-must-present-two-options-1-sign-in-using-internet-identity-authentication-and-2-continue-as-guest-which-skips-authentication-and-proceeds-directly-to-the-home-page-the-page-must-match-the-existing-pickleball-themed-visual-style-green-yellow-tones-card-based-layout-sporty-aesthetic-after-successful-internet-identity-login-redirect-the-user-to-the-home-page-guest-users-are-treated-as-unauthenticated-and-can-access-all-existing-flows-that-do-not-require-authentication",
+      "title": "Create a Login page as the app's entry point. The page must present two options: (1) 'Sign In' using Internet Identity authentication, and (2) 'Continue as Guest' which skips authentication and proceeds directly to the Home page. The page must match the existing pickleball-themed visual style (green/yellow tones, card-based layout, sporty aesthetic). After successful Internet Identity login, redirect the user to the Home page. Guest users are treated as unauthenticated and can access all existing flows that do not require authentication.",
+      "reqIds": [
+        "REQ-20"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-investigate-and-fix-the-bug-causing-session-creation-to-fail-with-the-error-failed-to-create-a-session-trace-the-full-session-creation-flow-from-the-createsession-page-through-the-backend-createsession-call-ensure-that-submitting-a-valid-court-count-successfully-creates-and-persists-the-session-in-the-backend-stores-the-session-info-in-local-storage-returns-a-valid-session-code-and-navigates-the-host-to-the-hostsessiondashboard-without-error-handle-both-authenticated-and-guest-anonymous-actor-cases",
+      "title": "Investigate and fix the bug causing session creation to fail with the error 'Failed to create a session'. Trace the full session creation flow from the CreateSession page through the backend createSession call. Ensure that submitting a valid court count successfully creates and persists the session in the backend, stores the session info in local storage, returns a valid session code, and navigates the host to the HostSessionDashboard without error. Handle both authenticated and guest (anonymous) actor cases.",
+      "reqIds": [
+        "REQ-21"
+      ],
+      "version": 1
+    }
+  ],
+  "new_feature_requests": [
+    {
+      "id": "AR-1",
+      "summary": "Player signup and profile creation",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-2",
+      "summary": "Session-based join code for players to enter a game session",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-3",
+      "summary": "Host option to select number of courts available",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-4",
+      "summary": "Player allocation mode: skill-based or random",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-5",
+      "summary": "Optional match history recording to determine/update player skill level",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-7",
+      "summary": "Support for more players than required (waitlist/rotation system)",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-8",
+      "summary": "Host can manually add players to a session",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-9",
+      "summary": "Skill level determined by DUPR rating integration",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-10",
+      "summary": "App automatically (randomly) allocates players to courts — host does not manually assign",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-12",
+      "summary": "Update the allocation engine so that courts support more than 4 players per session round when fewer than 4 players are available, but always assign exactly 4 players to a court when possible. When total players exceed (number of courts × 4), excess players are placed on the waitlist. After each round, waitlisted players rotate in randomly to replace players who just played, ensuring all players get equal play time and play with as many different people as possible across rounds.",
+      "reqIds": [
+        "REQ-17"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-13",
+      "summary": "Add a login page with an option to continue as guest",
+      "reqIds": [],
+      "status": "pending"
+    }
+  ],
+  "gameProjectType": "none",
+  "projectName": "Pickleball Player Allocator",
+  "clarification_mode": "instant",
+  "clarification_rounds": 0
+}

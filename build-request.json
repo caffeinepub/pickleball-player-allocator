@@ -1,0 +1,42 @@
+{
+  "kind": "build_request",
+  "title": "Fix session creation failure error",
+  "projectName": "Pickleball Allocator",
+  "priority": "high",
+  "requirements": [
+    {
+      "id": "REQ-21",
+      "text": "Investigate and fix the bug causing session creation to fail with the error 'Failed to create a session'. Trace the full session creation flow from the CreateSession page through the backend createSession call. Ensure that submitting a valid court count successfully creates and persists the session in the backend, stores the session info in local storage, returns a valid session code, and navigates the host to the HostSessionDashboard without error. Handle both authenticated and guest (anonymous) actor cases.",
+      "target": "both",
+      "source": {
+        "messageIds": [
+          "msg-7"
+        ],
+        "quotes": [
+          "Error Failed to create a session"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Submitting the session creation form with a valid court count (1–10) does not display 'Failed to create a session'.",
+        "A session is successfully created in the backend and a unique alphanumeric session code is returned.",
+        "The session code and session metadata are persisted to local storage after successful creation.",
+        "The host is navigated to the HostSessionDashboard after successful session creation.",
+        "The fix works for both Internet Identity authenticated users and guest (anonymous) users.",
+        "Any backend Motoko errors or frontend actor invocation errors are properly caught and surfaced with a meaningful message rather than a silent failure."
+      ]
+    }
+  ],
+  "constraints": [
+    "Do not change the session data model or existing session fields unless required to fix the bug.",
+    "Do not modify files listed in frontend.immutablePaths."
+  ],
+  "nonGoals": [
+    "Adding new session configuration options.",
+    "Changing session creation UI layout or design.",
+    "Fixing unrelated bugs outside the session creation flow."
+  ],
+  "imageRequirements": {
+    "required": [],
+    "edits": []
+  }
+}

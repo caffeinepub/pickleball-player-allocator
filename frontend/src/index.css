@@ -1,0 +1,155 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.75rem;
+
+    /* Pickleball Green/Yellow Theme */
+    --background: 0.97 0.01 120;
+    --foreground: 0.18 0.04 145;
+
+    --card: 1 0 0;
+    --card-foreground: 0.18 0.04 145;
+
+    --popover: 1 0 0;
+    --popover-foreground: 0.18 0.04 145;
+
+    /* Primary: Vibrant Green */
+    --primary: 0.52 0.18 145;
+    --primary-foreground: 1 0 0;
+
+    /* Secondary: Soft Green */
+    --secondary: 0.92 0.05 145;
+    --secondary-foreground: 0.25 0.08 145;
+
+    /* Accent: Pickleball Yellow */
+    --accent: 0.88 0.18 95;
+    --accent-foreground: 0.18 0.06 95;
+
+    --muted: 0.94 0.02 145;
+    --muted-foreground: 0.52 0.04 145;
+
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 1 0 0;
+
+    --border: 0.88 0.04 145;
+    --input: 0.88 0.04 145;
+    --ring: 0.52 0.18 145;
+
+    --chart-1: 0.52 0.18 145;
+    --chart-2: 0.88 0.18 95;
+    --chart-3: 0.65 0.15 200;
+    --chart-4: 0.75 0.12 30;
+    --chart-5: 0.60 0.20 25;
+
+    --sidebar: 0.95 0.03 145;
+    --sidebar-foreground: 0.18 0.04 145;
+    --sidebar-primary: 0.52 0.18 145;
+    --sidebar-primary-foreground: 1 0 0;
+    --sidebar-accent: 0.88 0.18 95;
+    --sidebar-accent-foreground: 0.18 0.06 95;
+    --sidebar-border: 0.88 0.04 145;
+    --sidebar-ring: 0.52 0.18 145;
+
+    /* Custom tokens */
+    --court-green: 0.45 0.16 145;
+    --court-line: 0.88 0.18 95;
+    --success: 0.55 0.18 145;
+    --success-foreground: 1 0 0;
+    --warning: 0.82 0.18 75;
+    --warning-foreground: 0.18 0.06 75;
+  }
+
+  .dark {
+    --background: 0.14 0.04 145;
+    --foreground: 0.95 0.02 145;
+
+    --card: 0.19 0.05 145;
+    --card-foreground: 0.95 0.02 145;
+
+    --popover: 0.22 0.05 145;
+    --popover-foreground: 0.95 0.02 145;
+
+    --primary: 0.62 0.20 145;
+    --primary-foreground: 0.10 0.03 145;
+
+    --secondary: 0.25 0.06 145;
+    --secondary-foreground: 0.90 0.03 145;
+
+    --accent: 0.78 0.18 95;
+    --accent-foreground: 0.12 0.04 95;
+
+    --muted: 0.22 0.04 145;
+    --muted-foreground: 0.65 0.05 145;
+
+    --destructive: 0.65 0.22 25;
+    --destructive-foreground: 0.95 0.02 145;
+
+    --border: 0.28 0.06 145;
+    --input: 0.28 0.06 145;
+    --ring: 0.62 0.20 145;
+
+    --sidebar: 0.19 0.05 145;
+    --sidebar-foreground: 0.95 0.02 145;
+    --sidebar-primary: 0.62 0.20 145;
+    --sidebar-primary-foreground: 0.10 0.03 145;
+    --sidebar-accent: 0.78 0.18 95;
+    --sidebar-accent-foreground: 0.12 0.04 95;
+    --sidebar-border: 0.28 0.06 145;
+    --sidebar-ring: 0.62 0.20 145;
+
+    --court-green: 0.55 0.18 145;
+    --court-line: 0.78 0.18 95;
+    --success: 0.60 0.18 145;
+    --success-foreground: 0.10 0.03 145;
+    --warning: 0.75 0.18 75;
+    --warning-foreground: 0.12 0.04 75;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: 'Inter', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', sans-serif;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Outfit', sans-serif;
+  }
+
+  .court-pattern {
+    background-image:
+      linear-gradient(oklch(0.52 0.18 145 / 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(0.52 0.18 145 / 0.08) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .gradient-primary {
+    background: linear-gradient(135deg, oklch(0.52 0.18 145), oklch(0.45 0.16 160));
+  }
+
+  .gradient-accent {
+    background: linear-gradient(135deg, oklch(0.88 0.18 95), oklch(0.82 0.20 85));
+  }
+
+  .card-hover {
+    @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
+  }
+
+  .btn-touch {
+    @apply min-h-[48px] min-w-[48px];
+  }
+}
