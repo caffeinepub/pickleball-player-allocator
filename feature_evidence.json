@@ -2,9 +2,13 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-investigate-and-fix-the-bug-causing-session-creation-to-fail-with-the-error-failed-to-create-a-session-trace-the-full-session-creation-flow-from-the-createsession-page-through-the-backend-createsession-call-ensure-that-submitting-a-valid-court-count-successfully-creates-and-persists-the-session-in-the-backend-stores-the-session-info-in-local-storage-returns-a-valid-session-code-and-navigates-the-host-to-the-hostsessiondashboard-without-error-handle-both-authenticated-and-guest-anonymous-actor-cases",
-      "featureTitle": "Investigate and fix the bug causing session creation to fail with the error 'Failed to create a session'. Trace the full session creation flow from the CreateSession page through the backend createSession call. Ensure that submitting a valid court count successfully creates and persists the session in the backend, stores the session info in local storage, returns a valid session code, and navigates the host to the HostSessionDashboard without error. Handle both authenticated and guest (anonymous) actor cases.",
+      "featureId": "feature-investigate-and-fix-the-issue-preventing-users-from-successfully-hosting-a-new-pickleball-session-this-includes-the-full-flow-submitting-the-sessionconfigform-court-count-selection-calling-the-backend-to-create-the-session-receiving-the-session-code-and-navigating-to-the-hostsessiondashboard-ensure-errors-are-caught-and-surfaced-to-the-user-with-clear-messages-rather-than-silently-failing",
+      "featureTitle": "Investigate and fix the issue preventing users from successfully hosting a new pickleball session. This includes the full flow: submitting the SessionConfigForm (court count selection), calling the backend to create the session, receiving the session code, and navigating to the HostSessionDashboard. Ensure errors are caught and surfaced to the user with clear messages rather than silently failing.",
       "files": [
+        "frontend/src/components/SessionConfigForm.tsx",
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/lib/errorHandling.ts",
+        "frontend/src/lib/storage.ts",
         "frontend/src/pages/CreateSession.tsx"
       ],
       "components": [
@@ -16,7 +20,7 @@
         "authorization@4.0.0"
       ],
       "testIds": [
-        "REQ-21"
+        "REQ-1"
       ],
       "confidence": "high"
     }

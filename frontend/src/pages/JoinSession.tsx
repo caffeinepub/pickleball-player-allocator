@@ -8,6 +8,7 @@ import { LogIn, Loader2, AlertCircle } from 'lucide-react';
 import { Layout } from '@/components/Layout';
 import { useJoinSession } from '@/hooks/useQueries';
 import { setCurrentSession } from '@/lib/storage';
+import { formatErrorMessage, isCanisterStoppedError } from '@/lib/errorHandling';
 import { toast } from 'sonner';
 
 export function JoinSession() {
@@ -26,16 +27,23 @@ export function JoinSession() {
     setError('');
 
     try {
-      await joinSession.mutateAsync({ sessionId: code });
+      // useJoinSession now accepts a plain string sessionId
+      await joinSession.mutateAsync(code);
       setCurrentSession({ sessionId: code, isHost: false });
       toast.success('Joined session!');
       router.navigate({ to: `/session/${code}/player` });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Invalid session code';
-      if (msg.includes('does not exist')) {
-        setError('Session not found. Check the code and try again.');
+      if (isCanisterStoppedError(err)) {
+        const msg = formatErrorMessage(err);
+        toast.error(msg);
+        setError(msg);
       } else {
-        setError('Failed to join session. Please try again.');
+        const rawMsg = err instanceof Error ? err.message : '';
+        if (rawMsg.includes('does not exist')) {
+          setError('Session not found. Check the code and try again.');
+        } else {
+          setError(formatErrorMessage(err));
+        }
       }
     }
   };

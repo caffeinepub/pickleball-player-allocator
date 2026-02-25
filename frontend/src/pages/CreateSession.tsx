@@ -1,34 +1,43 @@
 import React, { useState } from 'react';
-import { useRouter } from '@tanstack/react-router';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChevronRight, Loader2, Minus, Plus, MapPin, CheckCircle } from 'lucide-react';
-import { Layout } from '@/components/Layout';
-import { SessionCodeDisplay } from '@/components/SessionCodeDisplay';
-import { useCreateSession } from '@/hooks/useQueries';
-import { setCurrentSession } from '@/lib/storage';
+import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
+import { Layout } from '../components/Layout';
+import { SessionCodeDisplay } from '../components/SessionCodeDisplay';
+import SessionConfigForm from '../components/SessionConfigForm';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { ChevronRight, CheckCircle, MapPin } from 'lucide-react';
+import { useCreateSession } from '../hooks/useQueries';
+import { setCurrentSession } from '../lib/storage';
+import { formatErrorMessage } from '../lib/errorHandling';
+import { useActor } from '../hooks/useActor';
 
 export default function CreateSession() {
-  const router = useRouter();
-  const [courts, setCourts] = useState(2);
+  const navigate = useNavigate();
+  const { isFetching: actorFetching } = useActor();
+  const createSessionMutation = useCreateSession();
   const [createdSessionId, setCreatedSessionId] = useState<string | null>(null);
-  const createSession = useCreateSession();
+  const [courts, setCourts] = useState(2);
 
-  const handleCreate = async () => {
+  const handleCreate = async (selectedCourts: number) => {
+    setCourts(selectedCourts);
     try {
-      const result = await createSession.mutateAsync(courts);
+      const result = await createSessionMutation.mutateAsync(selectedCourts);
       const sessionId = result.sessionId;
       if (!sessionId) {
         throw new Error('No session ID returned from backend');
       }
+      setCurrentSession({
+        sessionId,
+        isHost: true,
+        hostPrincipal: result.config.host.toString(),
+        courts: Number(result.config.courts),
+      });
       setCreatedSessionId(sessionId);
-      setCurrentSession({ sessionId, isHost: true });
       toast.success('Session created!');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      console.error('Session creation failed:', message);
-      toast.error(`Failed to create session: ${message}`);
+      const message = formatErrorMessage(err);
+      toast.error(message);
     }
   };
 
@@ -48,7 +57,10 @@ export default function CreateSession() {
           <Card className="border border-border">
             <CardContent className="pt-3 pb-3 px-4">
               <div className="flex items-center justify-between text-sm">
-                <p className="text-muted-foreground">Courts</p>
+                <p className="text-muted-foreground flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5" />
+                  Courts
+                </p>
                 <p className="font-semibold text-foreground">{courts}</p>
               </div>
               <div className="flex items-center justify-between text-sm mt-2">
@@ -60,7 +72,9 @@ export default function CreateSession() {
 
           <Button
             className="w-full btn-touch gradient-primary text-primary-foreground font-display font-bold text-base shadow-card"
-            onClick={() => router.navigate({ to: `/session/${createdSessionId}/host` })}
+            onClick={() =>
+              navigate({ to: '/session/$sessionId/host', params: { sessionId: createdSessionId } })
+            }
           >
             Open Host Dashboard
             <ChevronRight className="h-5 w-5 ml-2" />
@@ -79,59 +93,10 @@ export default function CreateSession() {
           </p>
         </div>
 
-        <Card className="border border-border shadow-card">
-          <CardHeader className="pb-3 pt-4 px-4">
-            <CardTitle className="text-sm font-display flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-primary" />
-              Number of Courts
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-4 px-4">
-            <div className="flex items-center gap-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="btn-touch rounded-full border-primary/30"
-                onClick={() => setCourts(Math.max(1, courts - 1))}
-                disabled={courts <= 1}
-              >
-                <Minus className="h-4 w-4" />
-              </Button>
-              <div className="flex-1 text-center">
-                <span className="font-display font-black text-4xl text-primary">{courts}</span>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {courts === 1 ? 'court' : 'courts'} · up to {courts * 4} players active
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="btn-touch rounded-full border-primary/30"
-                onClick={() => setCourts(Math.min(10, courts + 1))}
-                disabled={courts >= 10}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3 text-center">
-              4 players per court. Extra players wait and rotate in each round.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Button
-          className="w-full btn-touch gradient-primary text-primary-foreground font-display font-bold text-base shadow-card"
-          onClick={handleCreate}
-          disabled={createSession.isPending}
-        >
-          {createSession.isPending ? (
-            <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Creating Session...</>
-          ) : (
-            <>Create Session <ChevronRight className="h-5 w-5 ml-2" /></>
-          )}
-        </Button>
+        <SessionConfigForm
+          onSubmit={handleCreate}
+          isLoading={createSessionMutation.isPending || actorFetching}
+        />
       </div>
     </Layout>
   );

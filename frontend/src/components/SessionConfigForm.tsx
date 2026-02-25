@@ -1,81 +1,100 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Minus, Plus, MapPin } from "lucide-react";
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Minus, Plus, Loader2 } from 'lucide-react';
 
 interface SessionConfigFormProps {
-  onSubmit: (courts: number) => void;
+  onSubmit: (courts: number) => void | Promise<void>;
   isLoading?: boolean;
 }
 
-export default function SessionConfigForm({ onSubmit, isLoading }: SessionConfigFormProps) {
+export default function SessionConfigForm({ onSubmit, isLoading = false }: SessionConfigFormProps) {
   const [courts, setCourts] = useState(2);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(courts);
+    if (isLoading) return;
+    await onSubmit(courts);
+  };
+
+  const decrementCourts = () => {
+    setCourts((prev) => Math.max(1, prev - 1));
+  };
+
+  const incrementCourts = () => {
+    setCourts((prev) => Math.min(10, prev + 1));
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Card className="border-border/50">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-primary" />
-            Number of Courts
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              How many courts are available?
-            </p>
-            <div className="flex items-center gap-3">
+    <Card className="shadow-card">
+      <CardHeader>
+        <CardTitle className="font-display">Session Configuration</CardTitle>
+        <CardDescription>Choose how many courts you have available</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Courts Stepper */}
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-foreground">
+              Number of Courts
+            </label>
+            <div className="flex items-center justify-center gap-6">
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-9 w-9 rounded-full"
-                onClick={() => setCourts((c) => Math.max(1, c - 1))}
-                disabled={courts <= 1}
+                onClick={decrementCourts}
+                disabled={courts <= 1 || isLoading}
+                className="h-12 w-12 rounded-full"
+                aria-label="Decrease courts"
               >
-                <Minus className="w-4 h-4" />
+                <Minus className="h-5 w-5" />
               </Button>
-              <span className="text-2xl font-bold w-8 text-center tabular-nums">
-                {courts}
-              </span>
+
+              <div className="flex flex-col items-center">
+                <span className="text-5xl font-bold font-display text-primary leading-none">
+                  {courts}
+                </span>
+                <span className="text-xs text-muted-foreground mt-1">
+                  {courts === 1 ? 'court' : 'courts'}
+                </span>
+              </div>
+
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-9 w-9 rounded-full"
-                onClick={() => setCourts((c) => Math.min(10, c + 1))}
-                disabled={courts >= 10}
+                onClick={incrementCourts}
+                disabled={courts >= 10 || isLoading}
+                className="h-12 w-12 rounded-full"
+                aria-label="Increase courts"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="h-5 w-5" />
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground text-center">
+              Each court supports 4 players (2 vs 2)
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-3">
-            Players will be randomly allocated across {courts} court{courts !== 1 ? "s" : ""} (4 players per court).
-          </p>
-        </CardContent>
-      </Card>
 
-      <Button
-        type="submit"
-        className="w-full h-12 text-base font-semibold"
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <span className="flex items-center gap-2">
-            <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-            Creating Session...
-          </span>
-        ) : (
-          "Create Session"
-        )}
-      </Button>
-    </form>
+          {/* Submit */}
+          <Button
+            type="submit"
+            className="w-full"
+            size="lg"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creating Session…
+              </>
+            ) : (
+              'Create Session'
+            )}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

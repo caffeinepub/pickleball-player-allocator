@@ -1,44 +1,44 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Fix session creation failure error",
+  "title": "Fix session hosting issue",
   "requirements": [
     {
-      "id": "REQ-21",
-      "summary": "Investigate and fix the bug causing session creation to fail with 'Failed to create a session' error by tracing the full flow from CreateSession page through backend call, ensuring successful creation, persistence, and navigation for both authenticated and guest users",
+      "id": "REQ-1",
+      "summary": "Fix the session hosting flow to properly handle session creation, display the session code, and navigate to the host dashboard with comprehensive error handling",
       "acceptanceCriteria": [
-        "Submitting the session creation form with a valid court count (1–10) does not display 'Failed to create a session'.",
-        "A session is successfully created in the backend and a unique alphanumeric session code is returned.",
-        "The session code and session metadata are persisted to local storage after successful creation.",
-        "The host is navigated to the HostSessionDashboard after successful session creation.",
-        "The fix works for both Internet Identity authenticated users and guest (anonymous) users.",
-        "Any backend Motoko errors or frontend actor invocation errors are properly caught and surfaced with a meaningful message rather than a silent failure."
+        "A user can open the Create Session page and select a court count without errors.",
+        "Submitting the SessionConfigForm successfully calls the backend createSession (or equivalent) function.",
+        "On success, the session code is displayed in SessionCodeDisplay and the user can navigate to the HostSessionDashboard.",
+        "If the backend call fails, a descriptive error toast or message is shown to the user.",
+        "No unhandled promise rejections or console errors occur during the hosting flow.",
+        "The fix handles both authenticated (Internet Identity) and guest users if both are supported as hosts."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/hooks/useActor.ts",
+          "path": "frontend/src/pages/CreateSession.tsx",
           "operation": "modify",
-          "description": "Review and ensure the actor initialization properly handles both authenticated and anonymous identity cases. Verify that the actor is ready before dependent queries execute and that initialization errors are properly surfaced. Confirm that the authorization component's automatic admin initialization does not interfere with guest session creation."
+          "description": "Fix the session creation flow by ensuring the createSession mutation properly awaits the backend call, handles both success and error states, stores the session to localStorage using setCurrentSession, displays error toasts on failure, and only shows the SessionCodeDisplay and navigation button after successful creation. Add loading states during the creation process and ensure the session state is properly initialized before rendering dependent components."
         },
         {
           "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Review the useCreateSession mutation hook to ensure it properly awaits the backend createSession call, handles both success and error cases explicitly, and returns structured error information. Add detailed error logging to capture the exact failure point (actor unavailable, backend trap, network error, etc.). Ensure the mutation does not silently swallow errors."
+          "description": "Review and fix the createSession mutation to ensure it properly returns the SessionCreationResult, handles authentication for both Internet Identity and guest users, includes proper error handling with retry logic for IC0508 canister errors, and provides clear error messages. Ensure the mutation properly invalidates related queries on success."
         },
         {
-          "path": "frontend/src/pages/CreateSession.tsx",
+          "path": "frontend/src/components/SessionConfigForm.tsx",
           "operation": "modify",
-          "description": "Review the session creation flow to ensure the form submission properly invokes the createSession mutation, waits for the result, persists session data to local storage via frontend/src/lib/storage.ts helpers, and navigates to /host-session-dashboard only after successful creation. Add comprehensive error handling that displays specific error messages (actor not ready, backend failure, storage failure) instead of generic 'Failed to create a session'. Ensure the error state is cleared on retry. Verify the component properly handles loading states and does not allow duplicate submissions."
+          "description": "Ensure the form submission handler properly calls the onSubmit callback with the selected court count, handles the loading state during submission, disables the submit button while creating the session, and displays any validation or submission errors inline. Add proper error boundaries to catch any unhandled exceptions."
+        },
+        {
+          "path": "frontend/src/lib/errorHandling.ts",
+          "operation": "modify",
+          "description": "Enhance error handling utilities to include specific error cases for session creation failures such as authentication errors, canister unavailability, invalid court counts, or network failures. Ensure formatError provides user-friendly messages for all common error scenarios in the hosting flow."
         },
         {
           "path": "frontend/src/lib/storage.ts",
           "operation": "modify",
-          "description": "Review the session storage helper functions to ensure they properly handle edge cases (storage quota exceeded, invalid JSON, concurrent access). Add error handling that returns meaningful error information rather than throwing uncaught exceptions. Verify that session metadata is correctly structured before persisting."
-        },
-        {
-          "path": "frontend/src/pages/HostSessionDashboard.tsx",
-          "operation": "modify",
-          "description": "Review the session state loading logic to ensure it properly handles the case when navigated to after session creation. Verify that the session ID is correctly retrieved from local storage and that the component shows appropriate loading/error states if the session cannot be loaded. Ensure the dashboard does not cause navigation failures that appear as creation errors."
+          "description": "Verify that setCurrentSession and getCurrentSession properly persist and retrieve session data including sessionId, host principal, and court count. Add error handling for localStorage quota exceeded or unavailable scenarios, providing fallback behavior that allows the app to continue functioning."
         }
       ]
     }

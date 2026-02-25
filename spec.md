@@ -1,14 +1,14 @@
 # Specification
 
 ## Summary
-**Goal:** Fix the bug causing session creation to fail with the "Failed to create a session" error in the Pickleball Allocator app.
+**Goal:** Investigate and fix the session hosting flow so users can successfully create and host a pickleball session end-to-end.
 
 **Planned changes:**
-- Trace and fix the session creation flow from the CreateSession page through the backend `createSession` call
-- Ensure a valid session is created and persisted in the backend upon form submission
-- Store session code and metadata in local storage after successful creation
-- Navigate the host to the HostSessionDashboard upon success
-- Handle both authenticated (Internet Identity) and guest (anonymous) user cases
-- Properly catch and surface backend Motoko errors and frontend actor invocation errors with meaningful messages
+- Debug and fix the SessionConfigForm submission (court count selection) to correctly trigger the backend session creation call.
+- Ensure the backend `createSession` (or equivalent) function is called properly and returns a session code.
+- Display the session code via `SessionCodeDisplay` and navigate the user to `HostSessionDashboard` on success.
+- Add error handling so any backend failures surface a descriptive toast or error message instead of silently failing.
+- Eliminate unhandled promise rejections or console errors during the hosting flow.
+- Ensure the fix works for both authenticated (Internet Identity) and guest users where applicable.
 
-**User-visible outcome:** Submitting the session creation form with a valid court count successfully creates a session, stores the session code, and navigates the host to the HostSessionDashboard without displaying an error.
+**User-visible outcome:** Users can open the Create Session page, select a court count, submit the form, and successfully land on the Host Session Dashboard with their session code — or see a clear error message if something goes wrong.

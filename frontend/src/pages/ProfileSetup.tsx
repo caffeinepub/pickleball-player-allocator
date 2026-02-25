@@ -9,13 +9,30 @@ import { Layout } from '@/components/Layout';
 import { useSaveCallerUserProfile } from '@/hooks/useQueries';
 import { setPlayerProfile } from '@/lib/storage';
 import { toast } from 'sonner';
+import { useInternetIdentity } from '@/hooks/useInternetIdentity';
+import { formatErrorMessage } from '@/lib/errorHandling';
 
 export default function ProfileSetup() {
   const router = useRouter();
   const search = useSearch({ strict: false }) as { next?: string };
   const [name, setName] = useState('');
   const [duprRating, setDuprRating] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const saveProfile = useSaveCallerUserProfile();
+  const { identity } = useInternetIdentity();
+
+  const isAuthenticated = !!identity;
+
+  const navigateNext = () => {
+    const next = search?.next;
+    if (next === 'create') {
+      router.navigate({ to: '/session/create' });
+    } else if (next === 'join') {
+      router.navigate({ to: '/session/join' });
+    } else {
+      router.navigate({ to: '/' });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,34 +47,41 @@ export default function ProfileSetup() {
       return;
     }
 
-    const navigateNext = () => {
-      const next = search?.next;
-      if (next === 'create') {
-        router.navigate({ to: '/session/create' });
-      } else if (next === 'join') {
-        router.navigate({ to: '/session/join' });
-      } else {
-        router.navigate({ to: '/' });
-      }
-    };
+    setIsSaving(true);
 
     try {
-      await saveProfile.mutateAsync({
-        name: name.trim(),
-        duprRating: parsedRating,
-      });
+      // Always save to localStorage first — works for both guests and authenticated users
       setPlayerProfile({ name: name.trim(), duprRating: parsedRating });
+
+      // Only call the backend if the user is authenticated (has Internet Identity)
+      // Guest users (anonymous principals) don't have the #user role and cannot call saveCallerUserProfile
+      if (isAuthenticated) {
+        await saveProfile.mutateAsync({
+          name: name.trim(),
+          duprRating: parsedRating,
+        });
+      }
+
       toast.success('Profile created!');
       navigateNext();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('Unauthorized')) {
-        toast.error('Please log in to create a profile.');
+      // If backend save fails, we still have the localStorage copy
+      // Show a user-friendly error but don't block navigation for non-critical failures
+      const msg = formatErrorMessage(err);
+      if (err instanceof Error && err.message.includes('Unauthorized')) {
+        // Unauthorized means the user doesn't have the right role
+        // This shouldn't happen for authenticated users, but handle gracefully
+        toast.error('Unable to save profile to the server. Your profile has been saved locally.');
+        navigateNext();
       } else {
-        toast.error('Failed to create profile. Please try again.');
+        toast.error(`Failed to save profile: ${msg}`);
       }
+    } finally {
+      setIsSaving(false);
     }
   };
+
+  const isPending = isSaving || saveProfile.isPending;
 
   return (
     <Layout title="Create Profile" showBack backTo="/">
@@ -124,12 +148,19 @@ export default function ProfileSetup() {
           </CardContent>
         </Card>
 
+        {/* Guest notice */}
+        {!isAuthenticated && (
+          <p className="text-xs text-muted-foreground text-center px-2">
+            You're continuing as a guest. Your profile will be saved on this device only.
+          </p>
+        )}
+
         <Button
           type="submit"
           className="w-full btn-touch gradient-primary text-primary-foreground font-display font-bold text-base shadow-card"
-          disabled={saveProfile.isPending || !name.trim()}
+          disabled={isPending || !name.trim()}
         >
-          {saveProfile.isPending ? (
+          {isPending ? (
             <span className="flex items-center gap-2">
               <span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
               Creating...

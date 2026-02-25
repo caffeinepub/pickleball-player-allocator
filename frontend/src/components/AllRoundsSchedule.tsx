@@ -1,82 +1,99 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Clock, Users } from 'lucide-react';
-import type { RoundAssignments } from '../backend';
+import { ChevronDown, ChevronUp, Trophy, Users } from 'lucide-react';
+import { RoundAssignments } from '../backend';
+import type { PlayerId } from '../backend';
 import CourtAssignmentCard from './CourtAssignmentCard';
 
 interface AllRoundsScheduleProps {
-  rounds: RoundAssignments[];
-  playerNames: Record<string, string>; // principalString -> name
-  currentRound?: number;
+  allRounds: RoundAssignments[];
+  playerNamesList: string[];
+  /** The ordered players array from sessionState.players — used for direct ID→name lookup */
+  sessionPlayers: PlayerId[];
+  currentRound: number;
+  currentPlayerIndex?: number;
 }
 
 export default function AllRoundsSchedule({
-  rounds,
-  playerNames,
+  allRounds,
+  playerNamesList,
+  sessionPlayers,
   currentRound,
+  currentPlayerIndex,
 }: AllRoundsScheduleProps) {
-  const [expandedRound, setExpandedRound] = useState<number | null>(
-    currentRound ? currentRound - 1 : 0
-  );
+  const [expandedRound, setExpandedRound] = useState<number | null>(currentRound - 1);
 
-  if (rounds.length === 0) {
+  /**
+   * Resolve a player name by their Principal ID.
+   * Find the player's index in sessionPlayers, then look up the name.
+   * This is the authoritative approach — no rotation math needed.
+   */
+  const resolvePlayerName = (playerId: { toString(): string }): string => {
+    const playerIdStr = playerId.toString();
+    const index = sessionPlayers.findIndex((p) => p.toString() === playerIdStr);
+    if (index === -1) return 'Unknown';
+    return playerNamesList[index] || (index === 0 ? 'Host' : `Player ${index + 1}`);
+  };
+
+  const currentPlayerName =
+    currentPlayerIndex !== undefined
+      ? playerNamesList[currentPlayerIndex]
+      : undefined;
+
+  if (allRounds.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        <Clock className="w-10 h-10 mx-auto mb-2 opacity-40" />
-        <p className="text-sm">No rounds scheduled yet. Allocate players to see the full schedule.</p>
+        <Trophy className="w-12 h-12 mx-auto mb-3 opacity-30" />
+        <p className="font-medium">No rounds scheduled yet</p>
+        <p className="text-sm mt-1">Allocate players to generate the schedule</p>
       </div>
     );
   }
 
-  const resolveNames = (playerIds: readonly string[]): string[] =>
-    playerIds.map((id, idx) => playerNames[id] ?? `Player ${idx + 1}`);
-
   return (
     <div className="space-y-3">
-      {rounds.map((round, roundIdx) => {
+      {allRounds.map((round, roundIdx) => {
         const roundNum = Number(round.round);
+        const isCurrentRound = roundNum === currentRound - 1;
         const isExpanded = expandedRound === roundIdx;
-        const isCurrent = currentRound !== undefined && roundNum === currentRound;
+
+        // Validate count integrity for this round
+        const totalCourtPlayers = round.assignments.reduce(
+          (sum, a) => sum + a.players.length,
+          0
+        );
+        const totalWaitlist = round.waitlist.length;
+        const roundTotal = totalCourtPlayers + totalWaitlist;
+        if (sessionPlayers.length > 0 && roundTotal !== sessionPlayers.length) {
+          console.warn(
+            `Round ${roundNum}: courts(${totalCourtPlayers}) + waitlist(${totalWaitlist}) = ${roundTotal}, expected ${sessionPlayers.length}`
+          );
+        }
 
         return (
           <div
-            key={roundNum}
-            className={`border rounded-xl overflow-hidden transition-all ${
-              isCurrent
-                ? 'border-primary shadow-md'
-                : 'border-border'
+            key={roundIdx}
+            className={`border rounded-xl overflow-hidden ${
+              isCurrentRound ? 'border-primary shadow-card' : 'border-border'
             }`}
           >
-            {/* Round header */}
             <button
               className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${
-                isCurrent
-                  ? 'bg-primary/10 hover:bg-primary/15'
-                  : 'bg-muted/50 hover:bg-muted'
+                isCurrentRound ? 'bg-primary/10' : 'bg-card hover:bg-muted/50'
               }`}
               onClick={() => setExpandedRound(isExpanded ? null : roundIdx)}
             >
               <div className="flex items-center gap-2">
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                    isCurrent
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted-foreground/20 text-muted-foreground'
-                  }`}
-                >
-                  {roundNum}
-                </div>
-                <span className="font-semibold text-foreground">
+                <Trophy
+                  className={`w-4 h-4 ${isCurrentRound ? 'text-primary' : 'text-muted-foreground'}`}
+                />
+                <span className={`font-semibold ${isCurrentRound ? 'text-primary' : ''}`}>
                   Round {roundNum}
-                  {isCurrent && (
-                    <span className="ml-2 text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
-                      Current
-                    </span>
-                  )}
                 </span>
-                <span className="text-xs text-muted-foreground">
-                  {round.assignments.length} court{round.assignments.length !== 1 ? 's' : ''}
-                  {round.waitlist.length > 0 && ` · ${round.waitlist.length} waiting`}
-                </span>
+                {isCurrentRound && (
+                  <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+                    Current
+                  </span>
+                )}
               </div>
               {isExpanded ? (
                 <ChevronUp className="w-4 h-4 text-muted-foreground" />
@@ -85,43 +102,48 @@ export default function AllRoundsSchedule({
               )}
             </button>
 
-            {/* Round content */}
             {isExpanded && (
-              <div className="p-3 space-y-3 bg-background">
-                {round.assignments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-2">
-                    No court assignments for this round.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {round.assignments.map((assignment) => (
-                      <CourtAssignmentCard
-                        key={Number(assignment.court)}
-                        courtNumber={assignment.court}
-                        players={resolveNames(assignment.players.map(p => p.toString()))}
-                        compact
-                      />
-                    ))}
-                  </div>
-                )}
+              <div className="p-4 space-y-3 bg-background">
+                {round.assignments.map((assignment, idx) => {
+                  // Resolve each player by their actual Principal ID
+                  const players = assignment.players.map((pid) => resolvePlayerName(pid));
+
+                  return (
+                    <CourtAssignmentCard
+                      key={idx}
+                      courtNumber={Number(assignment.court)}
+                      players={players}
+                      currentPlayerName={currentPlayerName}
+                    />
+                  );
+                })}
 
                 {round.waitlist.length > 0 && (
-                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                  <div className="mt-3 p-3 bg-muted/50 rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
-                      <Users className="w-4 h-4 text-amber-600" />
-                      <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-                        Waiting ({round.waitlist.length})
+                      <Users className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-muted-foreground">
+                        Waitlist ({round.waitlist.length})
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {round.waitlist.map((pid, i) => (
-                        <span
-                          key={i}
-                          className="text-xs bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-1 rounded-full"
-                        >
-                          {playerNames[pid.toString()] ?? `Player ${i + 1}`}
-                        </span>
-                      ))}
+                      {round.waitlist.map((pid, wIdx) => {
+                        const name = resolvePlayerName(pid);
+                        const isCurrentPlayer =
+                          currentPlayerName !== undefined && name === currentPlayerName;
+                        return (
+                          <span
+                            key={wIdx}
+                            className={`text-xs px-2 py-1 rounded-full ${
+                              isCurrentPlayer
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {name}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

@@ -76,11 +76,10 @@ export function Home() {
                   size="sm"
                   className="shrink-0 bg-primary text-primary-foreground"
                   onClick={() => {
-                    if (currentSession.isHost) {
-                      router.navigate({ to: `/session/${currentSession.sessionId}/host` });
-                    } else {
-                      router.navigate({ to: `/session/${currentSession.sessionId}/player` });
-                    }
+                    const dest = currentSession.isHost
+                      ? `/session/${currentSession.sessionId}/host`
+                      : `/session/${currentSession.sessionId}/player`;
+                    router.navigate({ to: dest });
                   }}
                 >
                   Resume
