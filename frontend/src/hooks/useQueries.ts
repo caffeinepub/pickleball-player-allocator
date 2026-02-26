@@ -1,57 +1,66 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
-import { useInternetIdentity } from './useInternetIdentity';
-import type {
-  SessionState,
-  SessionCreationResult,
-  RoundAssignments,
-  UserProfile,
-} from '../backend';
-import { GameOutcome } from '../backend';
-import type { Principal } from '@dfinity/principal';
-import { retryWithBackoff } from '../lib/errorHandling';
+import type { SessionState, UserProfile, PlayerId } from '../backend';
+import { GameOutcome, SessionType } from '../backend';
 
-export { GameOutcome };
+export { GameOutcome, SessionType };
+
+// ─── Session Code Generation ──────────────────────────────────────────────────
+
+/** Generate a random 8-character alphanumeric code (avoids confusable chars) */
+export function generateSessionCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface CreateSessionParams {
+  courts: number;
+  date?: string;
+  time?: string;
+  venue?: string;
+  duration?: number;
+  sessionCode: string;
+  sessionType: SessionType;
+  isRanked: boolean;
+}
+
+export interface AddPlayerParams {
+  sessionId: string;
+  playerName: string;
+  mobileNumber?: string;
+  bio?: string;
+  profilePicture?: string;
+  workField?: string;
+}
 
 // ─── User Profile ─────────────────────────────────────────────────────────────
 
 export function useGetCallerUserProfile() {
   const { actor, isFetching: actorFetching } = useActor();
-  const { identity } = useInternetIdentity();
-  const isAuthenticated = !!identity;
 
   const query = useQuery<UserProfile | null>({
     queryKey: ['currentUserProfile'],
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
-      if (!isAuthenticated) return null;
       try {
         return await actor.getCallerUserProfile();
-      } catch (err: any) {
-        // Guest/anonymous users get Unauthorized trap — treat as no profile
-        if (
-          err?.message?.includes('Unauthorized') ||
-          err?.message?.includes('unauthorized')
-        ) {
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('Unauthorized') || msg.includes('unauthorized')) {
           return null;
         }
         throw err;
       }
     },
-    enabled: !!actor && !actorFetching && isAuthenticated,
+    enabled: !!actor && !actorFetching,
     retry: false,
   });
-
-  // For guest users, return a resolved state with null data immediately
-  if (!isAuthenticated) {
-    return {
-      data: null as UserProfile | null,
-      isLoading: false,
-      isFetched: true,
-      isError: false,
-      error: null,
-    };
-  }
 
   return {
     ...query,
@@ -62,15 +71,12 @@ export function useGetCallerUserProfile() {
 
 export function useSaveCallerUserProfile() {
   const { actor } = useActor();
-  const { identity } = useInternetIdentity();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (profile: UserProfile) => {
-      // Only call the backend if the user is authenticated
-      if (!identity) return;
       if (!actor) throw new Error('Actor not available');
-      return retryWithBackoff(() => actor.saveCallerUserProfile(profile));
+      return actor.saveCallerUserProfile(profile);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
@@ -78,7 +84,7 @@ export function useSaveCallerUserProfile() {
   });
 }
 
-export function useGetUserProfile(user: Principal | null) {
+export function useGetUserProfile(user: PlayerId | null) {
   const { actor, isFetching } = useActor();
 
   return useQuery<UserProfile | null>({
@@ -92,61 +98,89 @@ export function useGetUserProfile(user: Principal | null) {
   });
 }
 
+export function useCreatePlayerProfile() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ name }: { name: string }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.createPlayerProfile(name);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
+    },
+  });
+}
+
 // ─── Session ──────────────────────────────────────────────────────────────────
 
-export function useGetSessionState(sessionId: string | null) {
+export function useCreateSession() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: CreateSessionParams) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.createSession(
+        BigInt(params.courts),
+        params.date ?? null,
+        params.time ?? null,
+        params.venue ?? null,
+        params.duration != null ? BigInt(params.duration) : null,
+        params.sessionCode,
+        params.sessionType,
+        params.isRanked,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    },
+  });
+}
+
+export function useGetSessionState(sessionId: string) {
   const { actor, isFetching } = useActor();
 
   return useQuery<SessionState>({
     queryKey: ['sessionState', sessionId],
     queryFn: async () => {
-      if (!actor || !sessionId) throw new Error('Actor or sessionId not available');
+      if (!actor) throw new Error('Actor not available');
       return actor.getSessionState(sessionId);
     },
     enabled: !!actor && !isFetching && !!sessionId,
     refetchInterval: 5000,
+    retry: 1,
   });
 }
 
-export function useCreateSession() {
-  const { actor, isFetching: actorFetching } = useActor();
-  const queryClient = useQueryClient();
+export function useGetSessionStateByCode(sessionCode: string) {
+  const { actor, isFetching } = useActor();
 
-  return useMutation<SessionCreationResult, Error, number>({
-    mutationFn: async (courts: number) => {
-      if (actorFetching) {
-        throw new Error('Still connecting to the network. Please try again in a moment.');
-      }
-      if (!actor) {
-        throw new Error('Unable to connect to the backend. Please refresh and try again.');
-      }
-      if (courts < 1 || courts > 10) {
-        throw new Error('Number of courts must be between 1 and 10.');
-      }
-      return retryWithBackoff(() => actor.createSession(BigInt(courts)));
+  return useQuery<SessionState>({
+    queryKey: ['sessionStateByCode', sessionCode],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getSessionStateByCode(sessionCode);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessionState'] });
-    },
+    enabled: !!actor && !isFetching && !!sessionCode,
+    refetchInterval: 5000,
+    retry: 1,
   });
 }
 
 export function useJoinSession() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const { actor } = useActor();
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, string>({
-    mutationFn: async (sessionId: string) => {
-      if (actorFetching) {
-        throw new Error('Still connecting to the network. Please try again in a moment.');
-      }
-      if (!actor) {
-        throw new Error('Unable to connect to the backend. Please refresh and try again.');
-      }
-      await retryWithBackoff(() => actor.joinSession(sessionId));
+  return useMutation({
+    mutationFn: async ({ sessionCode }: { sessionCode: string }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.joinSessionByCode(sessionCode);
     },
-    onSuccess: (_data, sessionId) => {
-      queryClient.invalidateQueries({ queryKey: ['sessionState', sessionId] });
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['sessionStateByCode', variables.sessionCode] });
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },
   });
 }
@@ -155,19 +189,21 @@ export function useAddPlayerToSession() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
-  return useMutation<
-    void,
-    Error,
-    { sessionId: string; playerName: string; duprRating?: number }
-  >({
-    mutationFn: async ({ sessionId, playerName, duprRating }) => {
+  return useMutation({
+    mutationFn: async (params: AddPlayerParams) => {
       if (!actor) throw new Error('Actor not available');
-      return retryWithBackoff(() =>
-        actor.addPlayerToSession(sessionId, playerName, duprRating ?? null)
+      return actor.addPlayerToSession(
+        params.sessionId,
+        params.playerName,
+        params.mobileNumber ?? '',
+        params.bio ?? null,
+        params.profilePicture ?? null,
+        params.workField ?? null,
       );
     },
-    onSuccess: (_data, { sessionId }) => {
-      queryClient.invalidateQueries({ queryKey: ['sessionState', sessionId] });
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['sessionState', variables.sessionId] });
+      queryClient.invalidateQueries({ queryKey: ['sessionStateByCode'] });
     },
   });
 }
@@ -176,14 +212,14 @@ export function useAllocatePlayers() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, string>({
+  return useMutation({
     mutationFn: async (sessionId: string) => {
       if (!actor) throw new Error('Actor not available');
-      return retryWithBackoff(() => actor.allocatePlayers(sessionId));
+      return actor.allocatePlayers(sessionId);
     },
     onSuccess: (_data, sessionId) => {
       queryClient.invalidateQueries({ queryKey: ['sessionState', sessionId] });
-      queryClient.invalidateQueries({ queryKey: ['allMatchups', sessionId] });
+      queryClient.invalidateQueries({ queryKey: ['sessionStateByCode'] });
     },
   });
 }
@@ -192,46 +228,54 @@ export function useSubmitMatchResult() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
-  return useMutation<
-    bigint,
-    Error,
-    { sessionId: string; court: bigint; outcome: GameOutcome }
-  >({
-    mutationFn: async ({ sessionId, court, outcome }) => {
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      court,
+      outcome,
+    }: {
+      sessionId: string;
+      court: bigint;
+      outcome: GameOutcome;
+    }) => {
       if (!actor) throw new Error('Actor not available');
-      return retryWithBackoff(() => actor.submitMatchResult(sessionId, court, outcome));
+      return actor.submitMatchResult(sessionId, court, outcome);
     },
-    onSuccess: (_data, { sessionId }) => {
-      queryClient.invalidateQueries({ queryKey: ['sessionState', sessionId] });
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['sessionState', variables.sessionId] });
+      queryClient.invalidateQueries({ queryKey: ['sessionStateByCode'] });
     },
   });
 }
 
-export function useCreatePlayerProfile() {
+export function useEndRound() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ name, duprRating }: { name: string; duprRating?: number }) => {
+    mutationFn: async (sessionId: string) => {
       if (!actor) throw new Error('Actor not available');
-      return retryWithBackoff(() => actor.createPlayerProfile(name, duprRating ?? null));
+      return actor.endRound(sessionId);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
+    onSuccess: (_data, sessionId) => {
+      queryClient.invalidateQueries({ queryKey: ['sessionState', sessionId] });
+      queryClient.invalidateQueries({ queryKey: ['sessionStateByCode'] });
     },
   });
 }
 
-export function useGetAllMatchups(sessionId: string | null, maxRounds: number) {
-  const { actor, isFetching } = useActor();
+export function useEndGame() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
 
-  return useQuery<RoundAssignments[]>({
-    queryKey: ['allMatchups', sessionId, maxRounds],
-    queryFn: async () => {
-      if (!actor || !sessionId) return [];
-      return actor.getAllMatchups(sessionId, BigInt(maxRounds));
+  return useMutation({
+    mutationFn: async (sessionId: string) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.endGame(sessionId);
     },
-    enabled: !!actor && !isFetching && !!sessionId && maxRounds > 0,
-    staleTime: 10000,
+    onSuccess: (_data, sessionId) => {
+      queryClient.invalidateQueries({ queryKey: ['sessionState', sessionId] });
+      queryClient.invalidateQueries({ queryKey: ['sessionStateByCode'] });
+    },
   });
 }

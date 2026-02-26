@@ -1,28 +1,4 @@
 {
   "kind": "feature_evidence_report",
-  "features": [
-    {
-      "featureId": "feature-investigate-and-fix-the-issue-preventing-users-from-successfully-hosting-a-new-pickleball-session-this-includes-the-full-flow-submitting-the-sessionconfigform-court-count-selection-calling-the-backend-to-create-the-session-receiving-the-session-code-and-navigating-to-the-hostsessiondashboard-ensure-errors-are-caught-and-surfaced-to-the-user-with-clear-messages-rather-than-silently-failing",
-      "featureTitle": "Investigate and fix the issue preventing users from successfully hosting a new pickleball session. This includes the full flow: submitting the SessionConfigForm (court count selection), calling the backend to create the session, receiving the session code, and navigating to the HostSessionDashboard. Ensure errors are caught and surfaced to the user with clear messages rather than silently failing.",
-      "files": [
-        "frontend/src/components/SessionConfigForm.tsx",
-        "frontend/src/hooks/useQueries.ts",
-        "frontend/src/lib/errorHandling.ts",
-        "frontend/src/lib/storage.ts",
-        "frontend/src/pages/CreateSession.tsx"
-      ],
-      "components": [
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0",
-        "authorization@4.0.0"
-      ],
-      "testIds": [
-        "REQ-1"
-      ],
-      "confidence": "high"
-    }
-  ]
+  "features": []
 }

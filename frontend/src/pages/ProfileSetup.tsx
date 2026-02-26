@@ -1,178 +1,262 @@
-import React, { useState } from 'react';
-import { useRouter, useSearch } from '@tanstack/react-router';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { User, ChevronRight, Star } from 'lucide-react';
-import { Layout } from '@/components/Layout';
-import { useSaveCallerUserProfile } from '@/hooks/useQueries';
-import { setPlayerProfile } from '@/lib/storage';
-import { toast } from 'sonner';
-import { useInternetIdentity } from '@/hooks/useInternetIdentity';
-import { formatErrorMessage } from '@/lib/errorHandling';
+import React, { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useSaveCallerUserProfile, useGetCallerUserProfile } from "@/hooks/useQueries";
+import { Loader2, User, Phone, Briefcase, Camera, Star } from "lucide-react";
+import { savePlayerProfile } from "@/lib/storage";
+
+const COUNTRY_CODES = [
+  { code: "+1", country: "US/CA" },
+  { code: "+44", country: "UK" },
+  { code: "+61", country: "AU" },
+  { code: "+64", country: "NZ" },
+  { code: "+65", country: "SG" },
+  { code: "+60", country: "MY" },
+  { code: "+63", country: "PH" },
+  { code: "+66", country: "TH" },
+  { code: "+81", country: "JP" },
+  { code: "+82", country: "KR" },
+  { code: "+86", country: "CN" },
+  { code: "+91", country: "IN" },
+  { code: "+49", country: "DE" },
+  { code: "+33", country: "FR" },
+  { code: "+34", country: "ES" },
+  { code: "+39", country: "IT" },
+  { code: "+55", country: "BR" },
+  { code: "+52", country: "MX" },
+  { code: "+27", country: "ZA" },
+  { code: "+971", country: "UAE" },
+];
+
+// Initial rating for new players: mu=1500, sigma=350, rating = 1500 - 2*350 = 800
+const INITIAL_RATING = 800;
 
 export default function ProfileSetup() {
-  const router = useRouter();
-  const search = useSearch({ strict: false }) as { next?: string };
-  const [name, setName] = useState('');
-  const [duprRating, setDuprRating] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
+  const navigate = useNavigate();
+  const { data: existingProfile, isLoading: profileLoading } = useGetCallerUserProfile();
   const saveProfile = useSaveCallerUserProfile();
-  const { identity } = useInternetIdentity();
 
-  const isAuthenticated = !!identity;
+  const [name, setName] = useState("");
+  const [countryCode, setCountryCode] = useState("+1");
+  const [mobileNumber, setMobileNumber] = useState("");
+  const [bio, setBio] = useState("");
+  const [workField, setWorkField] = useState("");
+  const [profilePicture, setProfilePicture] = useState<string | undefined>(undefined);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const navigateNext = () => {
-    const next = search?.next;
-    if (next === 'create') {
-      router.navigate({ to: '/session/create' });
-    } else if (next === 'join') {
-      router.navigate({ to: '/session/join' });
-    } else {
-      router.navigate({ to: '/' });
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!name.trim()) newErrors.name = "Name is required";
+    if (!mobileNumber.trim()) newErrors.mobileNumber = "Mobile number is required";
+    else if (!/^\d{6,15}$/.test(mobileNumber.replace(/\s/g, ""))) {
+      newErrors.mobileNumber = "Enter a valid mobile number (digits only)";
     }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setProfilePicture(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      toast.error('Please enter your name');
-      return;
-    }
+    if (!validate()) return;
 
-    const parsedRating = duprRating ? parseFloat(duprRating) : undefined;
-    if (parsedRating !== undefined && (isNaN(parsedRating) || parsedRating < 2.0 || parsedRating > 8.0)) {
-      toast.error('DUPR rating must be between 2.00 and 8.00');
-      return;
-    }
-
-    setIsSaving(true);
+    const fullMobile = `${countryCode}${mobileNumber.replace(/\s/g, "")}`;
 
     try {
-      // Always save to localStorage first — works for both guests and authenticated users
-      setPlayerProfile({ name: name.trim(), duprRating: parsedRating });
+      await saveProfile.mutateAsync({
+        name: name.trim(),
+        mobileNumber: fullMobile,
+        bio: bio.trim() || undefined,
+        profilePicture: profilePicture || undefined,
+        workField: workField.trim() || undefined,
+      });
 
-      // Only call the backend if the user is authenticated (has Internet Identity)
-      // Guest users (anonymous principals) don't have the #user role and cannot call saveCallerUserProfile
-      if (isAuthenticated) {
-        await saveProfile.mutateAsync({
-          name: name.trim(),
-          duprRating: parsedRating,
-        });
-      }
+      // principalId is optional in StoredPlayerProfile
+      savePlayerProfile({
+        name: name.trim(),
+        mobileNumber: fullMobile,
+        bio: bio.trim() || undefined,
+        profilePicture: profilePicture || undefined,
+        workField: workField.trim() || undefined,
+      });
 
-      toast.success('Profile created!');
-      navigateNext();
+      navigate({ to: "/" });
     } catch (err) {
-      // If backend save fails, we still have the localStorage copy
-      // Show a user-friendly error but don't block navigation for non-critical failures
-      const msg = formatErrorMessage(err);
-      if (err instanceof Error && err.message.includes('Unauthorized')) {
-        // Unauthorized means the user doesn't have the right role
-        // This shouldn't happen for authenticated users, but handle gracefully
-        toast.error('Unable to save profile to the server. Your profile has been saved locally.');
-        navigateNext();
-      } else {
-        toast.error(`Failed to save profile: ${msg}`);
-      }
-    } finally {
-      setIsSaving(false);
+      console.error("Failed to save profile:", err);
     }
   };
 
-  const isPending = isSaving || saveProfile.isPending;
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
-    <Layout title="Create Profile" showBack backTo="/">
-      <form onSubmit={handleSubmit} className="space-y-5 animate-slide-up">
-        {/* Avatar Preview */}
-        <div className="flex justify-center pt-2">
-          <div className="w-20 h-20 rounded-full gradient-primary flex items-center justify-center shadow-card">
-            {name ? (
-              <span className="font-display font-black text-3xl text-primary-foreground">
-                {name.charAt(0).toUpperCase()}
-              </span>
-            ) : (
-              <User className="h-8 w-8 text-primary-foreground" />
-            )}
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-card">
+        <CardHeader className="text-center pb-4">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+            <User className="w-8 h-8 text-primary" />
           </div>
-        </div>
+          <CardTitle className="text-xl">Set Up Your Profile</CardTitle>
+          <CardDescription>
+            Tell us about yourself to get started
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Profile Picture */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="relative w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden border-2 border-border">
+                {profilePicture ? (
+                  <img
+                    src={profilePicture}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Camera className="w-6 h-6 text-muted-foreground" />
+                )}
+              </div>
+              <label className="cursor-pointer">
+                <span className="text-xs text-primary font-medium hover:underline">
+                  Upload photo (optional)
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+              </label>
+            </div>
 
-        {/* Name Input */}
-        <Card className="border border-border shadow-card">
-          <CardContent className="pt-4 pb-4 px-4">
-            <Label htmlFor="name" className="text-sm font-semibold text-foreground mb-2 block">
-              Your Name
-            </Label>
-            <Input
-              id="name"
-              type="text"
-              placeholder="Enter your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="text-base"
-              autoFocus
-              maxLength={30}
-            />
-          </CardContent>
-        </Card>
+            {/* Name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="name" className="flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5" />
+                Full Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your full name"
+                className={errors.name ? "border-destructive" : ""}
+              />
+              {errors.name && (
+                <p className="text-xs text-destructive">{errors.name}</p>
+              )}
+            </div>
 
-        {/* DUPR Rating */}
-        <Card className="border border-border shadow-card">
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-display flex items-center gap-2">
-              <Star className="h-4 w-4 text-yellow-500" />
-              DUPR Rating
-              <span className="text-xs font-normal text-muted-foreground ml-1">(Optional)</span>
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Your Dynamic Universal Pickleball Rating (2.00–8.00)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pb-4 px-4">
-            <Input
-              id="duprRating"
-              type="number"
-              placeholder="e.g. 3.50"
-              value={duprRating}
-              onChange={(e) => setDuprRating(e.target.value)}
-              min={2.0}
-              max={8.0}
-              step={0.01}
-              className="text-base"
-            />
-            <p className="text-xs text-muted-foreground mt-2">
-              Leave blank if you don't have a DUPR rating yet.
-            </p>
-          </CardContent>
-        </Card>
+            {/* Mobile Number */}
+            <div className="space-y-1.5">
+              <Label htmlFor="mobile" className="flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5" />
+                Mobile Number <span className="text-destructive">*</span>
+              </Label>
+              <div className="flex gap-2">
+                <select
+                  value={countryCode}
+                  onChange={(e) => setCountryCode(e.target.value)}
+                  className="flex h-9 rounded-md border border-input bg-background px-2 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring w-24 flex-shrink-0"
+                >
+                  {COUNTRY_CODES.map((cc) => (
+                    <option key={cc.code} value={cc.code}>
+                      {cc.code} {cc.country}
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  id="mobile"
+                  value={mobileNumber}
+                  onChange={(e) =>
+                    setMobileNumber(e.target.value.replace(/[^\d\s]/g, ""))
+                  }
+                  placeholder="Phone number"
+                  className={`flex-1 ${errors.mobileNumber ? "border-destructive" : ""}`}
+                />
+              </div>
+              {errors.mobileNumber && (
+                <p className="text-xs text-destructive">{errors.mobileNumber}</p>
+              )}
+            </div>
 
-        {/* Guest notice */}
-        {!isAuthenticated && (
-          <p className="text-xs text-muted-foreground text-center px-2">
-            You're continuing as a guest. Your profile will be saved on this device only.
-          </p>
-        )}
+            {/* Work Field */}
+            <div className="space-y-1.5">
+              <Label htmlFor="workField" className="flex items-center gap-1.5">
+                <Briefcase className="w-3.5 h-3.5" />
+                Work Field <span className="text-muted-foreground text-xs font-normal">(optional)</span>
+              </Label>
+              <Input
+                id="workField"
+                value={workField}
+                onChange={(e) => setWorkField(e.target.value)}
+                placeholder="e.g. Software Engineer, Teacher..."
+              />
+            </div>
 
-        <Button
-          type="submit"
-          className="w-full btn-touch gradient-primary text-primary-foreground font-display font-bold text-base shadow-card"
-          disabled={isPending || !name.trim()}
-        >
-          {isPending ? (
-            <span className="flex items-center gap-2">
-              <span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-              Creating...
-            </span>
-          ) : (
-            <>
-              Create Profile
-              <ChevronRight className="h-5 w-5 ml-2" />
-            </>
-          )}
-        </Button>
-      </form>
-    </Layout>
+            {/* Bio */}
+            <div className="space-y-1.5">
+              <Label htmlFor="bio">
+                Bio <span className="text-muted-foreground text-xs font-normal">(optional)</span>
+              </Label>
+              <Textarea
+                id="bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Tell other players about yourself..."
+                rows={3}
+                className="resize-none"
+              />
+            </div>
+
+            {/* Rating Preview */}
+            <div className="bg-muted/40 rounded-lg p-3 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <Star className="w-4 h-4 text-primary" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground">Starting Rating</p>
+                <p className="text-sm font-bold text-foreground">{INITIAL_RATING}</p>
+              </div>
+              <Badge variant="secondary" className="text-xs">Hybrid TrueSkill-Elo</Badge>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={saveProfile.isPending}
+            >
+              {saveProfile.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Create Profile"
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

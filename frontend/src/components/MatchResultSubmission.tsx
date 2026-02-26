@@ -1,76 +1,165 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Trophy, X, CheckCircle, Loader2 } from 'lucide-react';
-import { GameOutcome } from '../backend';
+import React, { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { GameOutcome } from "../backend";
+import { Trophy, Loader2 } from "lucide-react";
+
+export type MatchFormat = "casual" | "standard" | "tournament" | "finals";
 
 interface MatchResultSubmissionProps {
-  onSubmit: (outcome: GameOutcome) => Promise<void>;
+  court: number | bigint;
+  teamA: string[];
+  teamB: string[];
+  onSubmit: (outcome: GameOutcome, format: MatchFormat) => void;
   isLoading?: boolean;
   onSkip?: () => void;
 }
 
-export function MatchResultSubmission({ onSubmit, isLoading, onSkip }: MatchResultSubmissionProps) {
-  const [submitted, setSubmitted] = useState(false);
+const FORMAT_OPTIONS: { value: MatchFormat; label: string; multiplier: string }[] = [
+  { value: "casual", label: "Casual", multiplier: "0.6×" },
+  { value: "standard", label: "Standard", multiplier: "1.0×" },
+  { value: "tournament", label: "Tournament", multiplier: "1.2×" },
+  { value: "finals", label: "Finals", multiplier: "1.4×" },
+];
 
-  const handleSubmit = async (outcome: GameOutcome) => {
-    await onSubmit(outcome);
-    setSubmitted(true);
+export function MatchResultSubmission({
+  court,
+  teamA,
+  teamB,
+  onSubmit,
+  isLoading = false,
+  onSkip,
+}: MatchResultSubmissionProps) {
+  const [selectedFormat, setSelectedFormat] = useState<MatchFormat>("standard");
+
+  const handleSubmit = (outcome: GameOutcome) => {
+    onSubmit(outcome, selectedFormat);
   };
 
-  if (submitted) {
-    return (
-      <Card className="border border-border bg-green-500/5">
-        <CardContent className="pt-4 pb-4 px-4 flex items-center gap-3">
-          <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
-          <div>
-            <p className="font-semibold text-sm text-foreground">Result Recorded!</p>
-            <p className="text-xs text-muted-foreground">Your match result has been saved.</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card className="border border-accent/30 bg-accent/5">
-      <CardHeader className="pb-2 pt-3 px-4">
-        <CardTitle className="flex items-center gap-2 text-sm font-display">
-          <Trophy className="h-4 w-4 text-accent-foreground" />
-          Record Match Result
-          <span className="ml-auto text-xs text-muted-foreground font-normal">(Optional)</span>
+    <Card className="border-border shadow-card">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Trophy className="w-4 h-4 text-primary" />
+          Court {court.toString()} Result
         </CardTitle>
       </CardHeader>
-      <CardContent className="pb-3 px-4">
-        <p className="text-xs text-muted-foreground mb-3">
-          Who won? Recording results helps track player performance.
-        </p>
-        <div className="grid grid-cols-2 gap-2 mb-2">
+      <CardContent className="space-y-4">
+        {/* Match Format Selector */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+            Match Format
+          </p>
+          <div className="grid grid-cols-4 gap-1.5">
+            {FORMAT_OPTIONS.map((fmt) => (
+              <button
+                key={fmt.value}
+                onClick={() => setSelectedFormat(fmt.value)}
+                disabled={isLoading}
+                className={`flex flex-col items-center py-2 px-1 rounded-lg border text-xs font-medium transition-all ${
+                  selectedFormat === fmt.value
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-muted/30 text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <span>{fmt.label}</span>
+                <span className="text-[10px] opacity-70 mt-0.5">
+                  {fmt.multiplier}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Teams */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-muted/30 rounded-lg p-3">
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
+              Team A
+            </p>
+            <div className="space-y-1">
+              {teamA.map((player, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[9px] font-bold text-primary">
+                      {player.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-xs text-foreground truncate">
+                    {player}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="bg-muted/30 rounded-lg p-3">
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
+              Team B
+            </p>
+            <div className="space-y-1">
+              {teamB.map((player, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <div className="w-5 h-5 rounded-full bg-secondary/30 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[9px] font-bold text-secondary-foreground">
+                      {player.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-xs text-foreground truncate">
+                    {player}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Win Buttons */}
+        <div className="grid grid-cols-2 gap-2">
           <Button
-            className="btn-touch bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
             onClick={() => handleSubmit(GameOutcome.teamAWin)}
             disabled={isLoading}
+            className="w-full text-sm"
+            variant="default"
           >
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : '🏆 Team A Won'}
+            {isLoading ? (
+              <Loader2 className="w-3 h-3 animate-spin mr-1" />
+            ) : null}
+            Team A Wins
           </Button>
           <Button
-            variant="outline"
-            className="btn-touch border-primary/30 text-primary font-semibold"
             onClick={() => handleSubmit(GameOutcome.teamBWin)}
             disabled={isLoading}
+            variant="outline"
+            className="w-full text-sm"
           >
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : '🏆 Team B Won'}
+            {isLoading ? (
+              <Loader2 className="w-3 h-3 animate-spin mr-1" />
+            ) : null}
+            Team B Wins
           </Button>
         </div>
+
         {onSkip && (
           <Button
-            variant="ghost"
-            size="sm"
-            className="w-full text-muted-foreground text-xs"
             onClick={onSkip}
+            disabled={isLoading}
+            variant="ghost"
+            className="w-full text-xs text-muted-foreground"
           >
-            <X className="h-3 w-3 mr-1" /> Skip for now
+            Skip this court
           </Button>
+        )}
+
+        {selectedFormat !== "standard" && (
+          <p className="text-[11px] text-muted-foreground text-center">
+            <Badge variant="outline" className="text-[10px] mr-1">
+              {FORMAT_OPTIONS.find((f) => f.value === selectedFormat)?.label}
+            </Badge>
+            format applies a{" "}
+            {FORMAT_OPTIONS.find((f) => f.value === selectedFormat)?.multiplier}{" "}
+            rating multiplier
+          </p>
         )}
       </CardContent>
     </Card>

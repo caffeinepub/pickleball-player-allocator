@@ -3,16 +3,20 @@
  */
 
 export interface StoredPlayerProfile {
+  principalId?: string;
   name: string;
-  duprRating?: number;
+  mobileNumber?: string;
+  bio?: string;
+  profilePicture?: string;
+  workField?: string;
 }
 
 export interface StoredSession {
   sessionId: string;
-  /** true when the current user is the session host */
-  isHost: boolean;
-  hostPrincipal?: string;
-  courts?: number;
+  sessionCode: string;
+  role: 'host' | 'player';
+  /** @deprecated use role === 'host' instead */
+  isHost?: boolean;
 }
 
 const PLAYER_PROFILE_KEY = 'pickleball_player_profile';
@@ -31,7 +35,7 @@ export function getPlayerProfile(): StoredPlayerProfile | null {
   }
 }
 
-export function setPlayerProfile(profile: StoredPlayerProfile): void {
+export function savePlayerProfile(profile: StoredPlayerProfile): void {
   try {
     localStorage.setItem(PLAYER_PROFILE_KEY, JSON.stringify(profile));
   } catch (err) {
@@ -53,13 +57,18 @@ export function getCurrentSession(): StoredSession | null {
   try {
     const raw = localStorage.getItem(CURRENT_SESSION_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as StoredSession;
+    const parsed = JSON.parse(raw) as StoredSession;
+    // Back-compat: if old format had isHost but no role, derive role
+    if (!parsed.role && parsed.isHost !== undefined) {
+      parsed.role = parsed.isHost ? 'host' : 'player';
+    }
+    return parsed;
   } catch {
     return null;
   }
 }
 
-export function setCurrentSession(session: StoredSession): void {
+export function saveCurrentSession(session: StoredSession): void {
   try {
     localStorage.setItem(CURRENT_SESSION_KEY, JSON.stringify(session));
   } catch (err) {
@@ -77,9 +86,6 @@ export function clearCurrentSession(): void {
 
 // ─── Session Player Names (index-based, per session) ─────────────────────────
 
-/**
- * Returns a map of { playerIndex: name } for the given session.
- */
 export function getSessionPlayerNames(sessionId: string): Record<number, string> {
   try {
     const raw = localStorage.getItem(`${SESSION_PLAYER_NAMES_KEY}_${sessionId}`);
@@ -90,9 +96,6 @@ export function getSessionPlayerNames(sessionId: string): Record<number, string>
   }
 }
 
-/**
- * Stores a player name at the given index for the given session.
- */
 export function setSessionPlayerName(sessionId: string, playerIndex: number, name: string): void {
   try {
     const existing = getSessionPlayerNames(sessionId);
@@ -116,6 +119,6 @@ export function clearSessionPlayerNames(sessionId: string): void {
 
 // ─── Backward-compatible aliases ──────────────────────────────────────────────
 export const loadPlayerProfile = getPlayerProfile;
-export const savePlayerProfile = setPlayerProfile;
+export const setPlayerProfile = savePlayerProfile;
 export const loadCurrentSession = getCurrentSession;
-export const saveCurrentSession = setCurrentSession;
+export const setCurrentSession = saveCurrentSession;

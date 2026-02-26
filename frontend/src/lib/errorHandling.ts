@@ -58,10 +58,6 @@ export function formatErrorMessage(err: unknown): string {
     return 'The service is temporarily unavailable. Please try again in a moment.';
   }
 
-  if (isAuthError(err)) {
-    return 'You need to be logged in to perform this action.';
-  }
-
   if (isNetworkError(err)) {
     return 'Network error. Please check your connection and try again.';
   }

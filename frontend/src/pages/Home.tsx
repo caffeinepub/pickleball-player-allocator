@@ -1,14 +1,12 @@
 import React from 'react';
-import { useRouter } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Plus, LogIn, User, ChevronRight, Zap } from 'lucide-react';
 import { getPlayerProfile, getCurrentSession } from '@/lib/storage';
-import { formatDuprRating } from '@/lib/utils';
 
 export function Home() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const profile = getPlayerProfile();
   const currentSession = getCurrentSession();
 
@@ -36,21 +34,24 @@ export function Home() {
             Pickleball Allocator
           </h1>
           <p className="text-primary-foreground/80 text-sm">
-            Smart player allocation for your pickleball sessions
+            Smart player allocation for your pickleball games
           </p>
           {profile && (
             <div className="mt-4 inline-flex items-center gap-2 bg-primary-foreground/20 rounded-full px-4 py-1.5">
-              <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center">
-                <span className="text-xs font-bold text-accent-foreground">
-                  {profile.name.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <span className="text-sm text-primary-foreground font-medium">{profile.name}</span>
-              {profile.duprRating != null && (
-                <Badge className="text-xs bg-accent text-accent-foreground border-0 py-0 h-4">
-                  {formatDuprRating(profile.duprRating)}
-                </Badge>
+              {profile.profilePicture ? (
+                <img
+                  src={profile.profilePicture}
+                  alt={profile.name}
+                  className="w-5 h-5 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center">
+                  <span className="text-xs font-bold text-accent-foreground">
+                    {profile.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
               )}
+              <span className="text-sm text-primary-foreground font-medium">{profile.name}</span>
             </div>
           )}
         </div>
@@ -67,19 +68,20 @@ export function Home() {
                   <Zap className="h-4 w-4 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground">Active Session</p>
+                  <p className="text-sm font-semibold text-foreground">Active Game</p>
                   <p className="text-xs text-muted-foreground truncate">
-                    Code: {currentSession.sessionId.slice(0, 8)}...
+                    Code: {currentSession.sessionCode || currentSession.sessionId.slice(0, 8)}
                   </p>
                 </div>
                 <Button
                   size="sm"
                   className="shrink-0 bg-primary text-primary-foreground"
                   onClick={() => {
-                    const dest = currentSession.isHost
+                    const isHost = currentSession.role === 'host' || currentSession.isHost === true;
+                    const dest = isHost
                       ? `/session/${currentSession.sessionId}/host`
                       : `/session/${currentSession.sessionId}/player`;
-                    router.navigate({ to: dest });
+                    navigate({ to: dest });
                   }}
                 >
                   Resume
@@ -94,7 +96,7 @@ export function Home() {
         {!profile ? (
           <Card
             className="border border-border shadow-card card-hover cursor-pointer"
-            onClick={() => router.navigate({ to: '/profile/setup' })}
+            onClick={() => navigate({ to: '/profile/setup' })}
           >
             <CardContent className="pt-4 pb-4 px-4">
               <div className="flex items-center gap-4">
@@ -103,7 +105,7 @@ export function Home() {
                 </div>
                 <div className="flex-1">
                   <p className="font-display font-bold text-foreground">Create Profile</p>
-                  <p className="text-sm text-muted-foreground">Set your name and DUPR rating</p>
+                  <p className="text-sm text-muted-foreground">Set your name and mobile number</p>
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </div>
@@ -112,20 +114,22 @@ export function Home() {
         ) : (
           <Card
             className="border border-border shadow-card card-hover cursor-pointer"
-            onClick={() => router.navigate({ to: '/profile/view' })}
+            onClick={() => navigate({ to: '/profile/view' })}
           >
             <CardContent className="pt-4 pb-4 px-4">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center shrink-0">
-                  <span className="font-display font-bold text-primary-foreground text-lg">
-                    {profile.name.charAt(0).toUpperCase()}
-                  </span>
+                <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center shrink-0 overflow-hidden">
+                  {profile.profilePicture ? (
+                    <img src={profile.profilePicture} alt={profile.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="font-display font-bold text-primary-foreground text-lg">
+                      {profile.name.charAt(0).toUpperCase()}
+                    </span>
+                  )}
                 </div>
                 <div className="flex-1">
                   <p className="font-display font-bold text-foreground">{profile.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {profile.duprRating != null ? formatDuprRating(profile.duprRating) : 'Unrated'} · View Profile
-                  </p>
+                  <p className="text-sm text-muted-foreground">View Profile</p>
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </div>
@@ -133,56 +137,24 @@ export function Home() {
           </Card>
         )}
 
-        {/* Create Session */}
+        {/* Host a Game */}
         <Button
           className="w-full btn-touch gradient-primary text-primary-foreground font-display font-bold text-base shadow-card"
-          onClick={() => {
-            if (!profile) {
-              router.navigate({ to: '/profile/setup' });
-            } else {
-              router.navigate({ to: '/session/create' });
-            }
-          }}
+          onClick={() => navigate({ to: '/session/create' })}
         >
           <Plus className="h-5 w-5 mr-2" />
-          Host a Session
+          Host a Game
         </Button>
 
-        {/* Join Session */}
+        {/* Join Game */}
         <Button
           variant="outline"
           className="w-full btn-touch border-2 border-primary/30 text-primary font-display font-bold text-base"
-          onClick={() => {
-            if (!profile) {
-              router.navigate({ to: '/profile/setup' });
-            } else {
-              router.navigate({ to: '/session/join' });
-            }
-          }}
+          onClick={() => navigate({ to: '/session/join' })}
         >
           <LogIn className="h-5 w-5 mr-2" />
-          Join a Session
+          Join a Game
         </Button>
-
-        {/* How it works */}
-        <div className="pt-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">How it works</p>
-          <div className="space-y-2">
-            {[
-              { step: '1', text: 'Create your player profile with DUPR rating' },
-              { step: '2', text: 'Host creates a session with a code' },
-              { step: '3', text: 'Players join using the session code' },
-              { step: '4', text: 'Host randomly allocates players to courts' },
-            ].map(({ step, text }) => (
-              <div key={step} className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <span className="text-xs font-bold text-primary">{step}</span>
-                </div>
-                <p className="text-sm text-muted-foreground">{text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Footer */}

@@ -15,6 +15,13 @@ export const UserRole = IDL.Variant({
   'guest' : IDL.Null,
 });
 export const PlayerId = IDL.Principal;
+export const GameCode = IDL.Text;
+export const SessionType = IDL.Variant({
+  'randomAllotment' : IDL.Null,
+  'kingQueenOfTheCourt' : IDL.Null,
+  'roundRobin' : IDL.Null,
+  'ladderLeague' : IDL.Null,
+});
 export const Court = IDL.Nat;
 export const CourtAssignment = IDL.Record({
   'court' : Court,
@@ -36,19 +43,32 @@ export const RoundAssignments = IDL.Record({
   'waitlist' : IDL.Vec(PlayerId),
   'round' : IDL.Nat,
 });
+export const AllGamesRoundAssignments = IDL.Record({
+  'round' : IDL.Nat,
+  'roundAssignments' : IDL.Vec(RoundAssignments),
+});
 export const SessionConfig = IDL.Record({
+  'isRanked' : IDL.Bool,
+  'duration' : IDL.Opt(IDL.Nat),
+  'sessionCode' : GameCode,
+  'sessionType' : SessionType,
+  'venue' : IDL.Opt(IDL.Text),
+  'date' : IDL.Opt(IDL.Text),
   'host' : PlayerId,
+  'time' : IDL.Opt(IDL.Text),
   'creationTime' : Time,
   'sessionId' : SessionId,
   'courts' : IDL.Nat,
 });
 export const SessionState = IDL.Record({
   'assignments' : IDL.Vec(CourtAssignment),
+  'isCompleted' : IDL.Bool,
+  'previousWaitlist' : IDL.Vec(PlayerId),
   'currentRound' : IDL.Nat,
   'waitlist' : IDL.Vec(PlayerId),
   'matches' : IDL.Vec(MatchResult),
   'players' : IDL.Vec(PlayerId),
-  'allRounds' : IDL.Vec(RoundAssignments),
+  'allGamesAssignments' : IDL.Vec(AllGamesRoundAssignments),
   'config' : SessionConfig,
 });
 export const SessionCreationResult = IDL.Record({
@@ -57,34 +77,67 @@ export const SessionCreationResult = IDL.Record({
   'config' : SessionConfig,
 });
 export const UserProfile = IDL.Record({
-  'duprRating' : IDL.Opt(IDL.Float64),
+  'bio' : IDL.Opt(IDL.Text),
   'name' : IDL.Text,
+  'mobileNumber' : IDL.Text,
+  'workField' : IDL.Opt(IDL.Text),
+  'profilePicture' : IDL.Opt(IDL.Text),
 });
 export const MatchId = IDL.Nat;
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'addPlayerToSession' : IDL.Func(
-      [SessionId, IDL.Text, IDL.Opt(IDL.Float64)],
+      [
+        SessionId,
+        IDL.Text,
+        IDL.Text,
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+      ],
       [],
       [],
     ),
   'allocatePlayers' : IDL.Func([SessionId], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-  'createPlayerProfile' : IDL.Func(
-      [IDL.Text, IDL.Opt(IDL.Float64)],
-      [PlayerId],
+  'createPlayerProfile' : IDL.Func([IDL.Text], [PlayerId], []),
+  'createSession' : IDL.Func(
+      [
+        IDL.Nat,
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Nat),
+        GameCode,
+        SessionType,
+        IDL.Bool,
+      ],
+      [SessionCreationResult],
       [],
     ),
-  'createSession' : IDL.Func([IDL.Nat], [SessionCreationResult], []),
-  'getAllMatchups' : IDL.Func(
-      [SessionId, IDL.Nat],
-      [IDL.Vec(RoundAssignments)],
+  'endGame' : IDL.Func([SessionId], [], []),
+  'endRound' : IDL.Func([SessionId], [], []),
+  'getAllGames' : IDL.Func(
+      [SessionId, IDL.Nat, IDL.Nat],
+      [IDL.Vec(AllGamesRoundAssignments)],
       ['query'],
     ),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getSessionGameInfo' : IDL.Func(
+      [SessionId],
+      [
+        IDL.Text,
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Nat),
+      ],
+      ['query'],
+    ),
   'getSessionState' : IDL.Func([SessionId], [SessionState], ['query']),
+  'getSessionStateByCode' : IDL.Func([IDL.Text], [SessionState], ['query']),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
       [IDL.Opt(UserProfile)],
@@ -92,6 +145,7 @@ export const idlService = IDL.Service({
     ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'joinSession' : IDL.Func([SessionId], [], []),
+  'joinSessionByCode' : IDL.Func([IDL.Text], [], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'submitMatchResult' : IDL.Func(
       [SessionId, Court, GameOutcome],
@@ -110,6 +164,13 @@ export const idlFactory = ({ IDL }) => {
     'guest' : IDL.Null,
   });
   const PlayerId = IDL.Principal;
+  const GameCode = IDL.Text;
+  const SessionType = IDL.Variant({
+    'randomAllotment' : IDL.Null,
+    'kingQueenOfTheCourt' : IDL.Null,
+    'roundRobin' : IDL.Null,
+    'ladderLeague' : IDL.Null,
+  });
   const Court = IDL.Nat;
   const CourtAssignment = IDL.Record({
     'court' : Court,
@@ -131,19 +192,32 @@ export const idlFactory = ({ IDL }) => {
     'waitlist' : IDL.Vec(PlayerId),
     'round' : IDL.Nat,
   });
+  const AllGamesRoundAssignments = IDL.Record({
+    'round' : IDL.Nat,
+    'roundAssignments' : IDL.Vec(RoundAssignments),
+  });
   const SessionConfig = IDL.Record({
+    'isRanked' : IDL.Bool,
+    'duration' : IDL.Opt(IDL.Nat),
+    'sessionCode' : GameCode,
+    'sessionType' : SessionType,
+    'venue' : IDL.Opt(IDL.Text),
+    'date' : IDL.Opt(IDL.Text),
     'host' : PlayerId,
+    'time' : IDL.Opt(IDL.Text),
     'creationTime' : Time,
     'sessionId' : SessionId,
     'courts' : IDL.Nat,
   });
   const SessionState = IDL.Record({
     'assignments' : IDL.Vec(CourtAssignment),
+    'isCompleted' : IDL.Bool,
+    'previousWaitlist' : IDL.Vec(PlayerId),
     'currentRound' : IDL.Nat,
     'waitlist' : IDL.Vec(PlayerId),
     'matches' : IDL.Vec(MatchResult),
     'players' : IDL.Vec(PlayerId),
-    'allRounds' : IDL.Vec(RoundAssignments),
+    'allGamesAssignments' : IDL.Vec(AllGamesRoundAssignments),
     'config' : SessionConfig,
   });
   const SessionCreationResult = IDL.Record({
@@ -152,34 +226,67 @@ export const idlFactory = ({ IDL }) => {
     'config' : SessionConfig,
   });
   const UserProfile = IDL.Record({
-    'duprRating' : IDL.Opt(IDL.Float64),
+    'bio' : IDL.Opt(IDL.Text),
     'name' : IDL.Text,
+    'mobileNumber' : IDL.Text,
+    'workField' : IDL.Opt(IDL.Text),
+    'profilePicture' : IDL.Opt(IDL.Text),
   });
   const MatchId = IDL.Nat;
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'addPlayerToSession' : IDL.Func(
-        [SessionId, IDL.Text, IDL.Opt(IDL.Float64)],
+        [
+          SessionId,
+          IDL.Text,
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+        ],
         [],
         [],
       ),
     'allocatePlayers' : IDL.Func([SessionId], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'createPlayerProfile' : IDL.Func(
-        [IDL.Text, IDL.Opt(IDL.Float64)],
-        [PlayerId],
+    'createPlayerProfile' : IDL.Func([IDL.Text], [PlayerId], []),
+    'createSession' : IDL.Func(
+        [
+          IDL.Nat,
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Nat),
+          GameCode,
+          SessionType,
+          IDL.Bool,
+        ],
+        [SessionCreationResult],
         [],
       ),
-    'createSession' : IDL.Func([IDL.Nat], [SessionCreationResult], []),
-    'getAllMatchups' : IDL.Func(
-        [SessionId, IDL.Nat],
-        [IDL.Vec(RoundAssignments)],
+    'endGame' : IDL.Func([SessionId], [], []),
+    'endRound' : IDL.Func([SessionId], [], []),
+    'getAllGames' : IDL.Func(
+        [SessionId, IDL.Nat, IDL.Nat],
+        [IDL.Vec(AllGamesRoundAssignments)],
         ['query'],
       ),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getSessionGameInfo' : IDL.Func(
+        [SessionId],
+        [
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Nat),
+        ],
+        ['query'],
+      ),
     'getSessionState' : IDL.Func([SessionId], [SessionState], ['query']),
+    'getSessionStateByCode' : IDL.Func([IDL.Text], [SessionState], ['query']),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
@@ -187,6 +294,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'joinSession' : IDL.Func([SessionId], [], []),
+    'joinSessionByCode' : IDL.Func([IDL.Text], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'submitMatchResult' : IDL.Func(
         [SessionId, Court, GameOutcome],

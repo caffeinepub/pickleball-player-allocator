@@ -1,118 +1,143 @@
-import React, { useState } from 'react';
-import { useRouter } from '@tanstack/react-router';
+import { useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { ArrowLeft, Hash, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
-import { LogIn, Loader2, AlertCircle } from 'lucide-react';
-import { Layout } from '@/components/Layout';
-import { useJoinSession } from '@/hooks/useQueries';
-import { setCurrentSession } from '@/lib/storage';
-import { formatErrorMessage, isCanisterStoppedError } from '@/lib/errorHandling';
-import { toast } from 'sonner';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useJoinSession } from '../hooks/useQueries';
+import { saveCurrentSession } from '../lib/storage';
 
-export function JoinSession() {
-  const router = useRouter();
+export default function JoinSession() {
+  const navigate = useNavigate();
   const [sessionCode, setSessionCode] = useState('');
   const [error, setError] = useState('');
-  const joinSession = useJoinSession();
 
-  const handleJoin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = sessionCode.trim();
-    if (!code) {
-      setError('Please enter a session code');
+  const joinSessionMutation = useJoinSession();
+
+  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Allow alphanumeric codes of any reasonable length (up to 20 chars)
+    const value = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    setSessionCode(value.slice(0, 20));
+    setError('');
+  };
+
+  const handleJoin = async () => {
+    if (!sessionCode.trim()) {
+      setError('Please enter a game code');
       return;
     }
-    setError('');
+
+    if (sessionCode.length < 4) {
+      setError('Game code must be at least 4 characters');
+      return;
+    }
 
     try {
-      // useJoinSession now accepts a plain string sessionId
-      await joinSession.mutateAsync(code);
-      setCurrentSession({ sessionId: code, isHost: false });
-      toast.success('Joined session!');
-      router.navigate({ to: `/session/${code}/player` });
-    } catch (err) {
-      if (isCanisterStoppedError(err)) {
-        const msg = formatErrorMessage(err);
-        toast.error(msg);
-        setError(msg);
+      await joinSessionMutation.mutateAsync({ sessionCode });
+      saveCurrentSession({
+        sessionId: '',
+        sessionCode,
+        role: 'player',
+      });
+      navigate({ to: '/session/$sessionId/player', params: { sessionId: sessionCode } });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('Session does not exist') || message.includes('does not exist')) {
+        setError('Game not found. Please check the code and try again.');
+      } else if (message.includes('Unauthorized')) {
+        setError('You need to be logged in to join a game.');
       } else {
-        const rawMsg = err instanceof Error ? err.message : '';
-        if (rawMsg.includes('does not exist')) {
-          setError('Session not found. Check the code and try again.');
-        } else {
-          setError(formatErrorMessage(err));
-        }
+        setError('Failed to join game. Please try again.');
       }
     }
   };
 
-  return (
-    <Layout title="Join a Session" showBack backTo="/">
-      <div className="space-y-5 animate-slide-up">
-        <div className="text-center py-4">
-          <div className="text-5xl mb-3">🏓</div>
-          <p className="text-sm text-muted-foreground">
-            Enter the session code shared by your host
-          </p>
-        </div>
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleJoin();
+    }
+  };
 
-        <form onSubmit={handleJoin} className="space-y-4">
-          <Card className="border border-border shadow-card">
-            <CardContent className="pt-4 pb-4 px-4">
-              <Label htmlFor="sessionCode" className="text-sm font-semibold text-foreground mb-2 block">
-                Session Code
-              </Label>
-              <Input
-                id="sessionCode"
-                type="text"
-                placeholder="Enter session code"
-                value={sessionCode}
-                onChange={(e) => {
-                  setSessionCode(e.target.value);
-                  setError('');
-                }}
-                className="text-center text-lg font-display font-bold tracking-wider h-14"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-              {error && (
-                <div className="flex items-center gap-2 mt-2 text-destructive">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  <p className="text-sm">{error}</p>
-                </div>
-              )}
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 py-3">
+        <div className="flex items-center gap-3 max-w-lg mx-auto">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate({ to: '/' })}
+            className="shrink-0"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-lg font-bold font-display text-foreground">Join a Game</h1>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 flex items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-6">
+          {/* Hero */}
+          <div className="text-center space-y-2">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+              <Hash className="h-8 w-8 text-primary" />
+            </div>
+            <h2 className="text-2xl font-bold font-display text-foreground">Enter Game Code</h2>
+            <p className="text-muted-foreground text-sm">
+              Ask your host for the game code to join the session
+            </p>
+          </div>
+
+          {/* Code Input Card */}
+          <Card className="border-border shadow-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Game Code</CardTitle>
+              <CardDescription>Enter the code shared by your host</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="sessionCode">Code</Label>
+                <Input
+                  id="sessionCode"
+                  value={sessionCode}
+                  onChange={handleCodeChange}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Enter game code"
+                  className="text-center text-2xl font-mono font-bold tracking-widest h-14"
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  maxLength={20}
+                />
+                {error && (
+                  <p className="text-destructive text-sm text-center">{error}</p>
+                )}
+              </div>
+
+              <Button
+                onClick={handleJoin}
+                disabled={joinSessionMutation.isPending || !sessionCode.trim()}
+                className="w-full h-12 text-base font-semibold"
+              >
+                {joinSessionMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Joining...
+                  </>
+                ) : (
+                  'Join Game'
+                )}
+              </Button>
             </CardContent>
           </Card>
 
-          <Button
-            type="submit"
-            className="w-full btn-touch gradient-primary text-primary-foreground font-display font-bold text-base shadow-card"
-            disabled={joinSession.isPending || !sessionCode.trim()}
-          >
-            {joinSession.isPending ? (
-              <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Joining...</>
-            ) : (
-              <><LogIn className="h-5 w-5 mr-2" /> Join Session</>
-            )}
-          </Button>
-        </form>
-
-        <div className="text-center">
-          <p className="text-xs text-muted-foreground">
-            Don't have a code?{' '}
-            <button
-              type="button"
-              className="text-primary font-medium underline"
-              onClick={() => router.navigate({ to: '/session/create' })}
-            >
-              Host your own session
-            </button>
+          {/* Help text */}
+          <p className="text-center text-xs text-muted-foreground">
+            Don't have a code? Ask your session host to share it with you.
           </p>
         </div>
-      </div>
-    </Layout>
+      </main>
+    </div>
   );
 }

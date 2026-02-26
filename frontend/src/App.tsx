@@ -15,10 +15,9 @@ import Login from './pages/Login';
 import ProfileSetup from './pages/ProfileSetup';
 import ProfileView from './pages/ProfileView';
 import CreateSession from './pages/CreateSession';
-import { JoinSession } from './pages/JoinSession';
+import JoinSession from './pages/JoinSession';
 import HostSessionDashboard from './pages/HostSessionDashboard';
 import PlayerSessionView from './pages/PlayerSessionView';
-import { getAuthChoice } from './pages/Login';
 
 const AUTH_CHOICE_KEY = 'pickleball_auth_choice';
 

@@ -1,100 +1,217 @@
-import React from 'react';
-import { Users } from 'lucide-react';
+import React, { useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2, CheckCircle2 } from 'lucide-react';
 
 interface CourtAssignmentCardProps {
-  courtNumber: number | bigint;
-  players: string[]; // player names (already resolved)
-  currentPlayerName?: string;
-  compact?: boolean;
+  courtNumber: number;
+  players: string[];
+  currentPlayer?: string;
+  // Score entry (for ranked sessions, host only)
+  showScoreEntry?: boolean;
+  onScoreSubmit?: (teamAScore: number, teamBScore: number) => Promise<void> | void;
+  isScoreSubmitting?: boolean;
+  // Display submitted scores (for all users after host submits)
+  submittedTeamAScore?: number;
+  submittedTeamBScore?: number;
 }
 
 export default function CourtAssignmentCard({
   courtNumber,
   players,
-  currentPlayerName,
-  compact = false,
+  currentPlayer,
+  showScoreEntry = false,
+  onScoreSubmit,
+  isScoreSubmitting = false,
+  submittedTeamAScore,
+  submittedTeamBScore,
 }: CourtAssignmentCardProps) {
+  const [teamAScore, setTeamAScore] = useState('');
+  const [teamBScore, setTeamBScore] = useState('');
+  const [scoreSubmitted, setScoreSubmitted] = useState(false);
+
   const teamA = players.slice(0, 2);
   const teamB = players.slice(2, 4);
 
-  const isCurrentPlayer = (name: string) =>
-    currentPlayerName ? name === currentPlayerName : false;
+  const hasSubmittedScores =
+    submittedTeamAScore !== undefined && submittedTeamBScore !== undefined;
 
-  const renderSlot = (name: string | undefined, index: number) => {
-    const filled = !!name;
-    const highlight = filled && isCurrentPlayer(name!);
+  const isScoreValid =
+    teamAScore !== '' &&
+    teamBScore !== '' &&
+    !isNaN(parseInt(teamAScore, 10)) &&
+    !isNaN(parseInt(teamBScore, 10)) &&
+    parseInt(teamAScore, 10) >= 0 &&
+    parseInt(teamBScore, 10) >= 0;
 
+  const handleScoreSubmit = async () => {
+    if (!isScoreValid || !onScoreSubmit) return;
+    const a = parseInt(teamAScore, 10);
+    const b = parseInt(teamBScore, 10);
+    await onScoreSubmit(a, b);
+    setScoreSubmitted(true);
+  };
+
+  const renderPlayerSlot = (name: string | undefined, index: number) => {
+    const isCurrentPlayer = name && currentPlayer && name === currentPlayer;
     return (
       <div
         key={index}
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-          highlight
-            ? 'bg-primary text-primary-foreground shadow-sm'
-            : filled
-            ? 'bg-muted text-foreground'
-            : 'bg-muted/40 text-muted-foreground border border-dashed border-border'
+        className={`flex items-center gap-2 p-2 rounded-lg ${
+          isCurrentPlayer ? 'bg-primary/15 ring-1 ring-primary/40' : 'bg-muted/40'
         }`}
       >
         <div
-          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-            highlight
-              ? 'bg-primary-foreground/20 text-primary-foreground'
-              : filled
-              ? 'bg-primary/20 text-primary'
-              : 'bg-muted text-muted-foreground'
+          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+            isCurrentPlayer
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted-foreground/20 text-muted-foreground'
           }`}
         >
-          {filled ? name![0].toUpperCase() : '?'}
+          {name ? name.charAt(0).toUpperCase() : '?'}
         </div>
-        <span className="truncate">{filled ? name : 'Empty slot'}</span>
-        {highlight && (
-          <span className="ml-auto text-xs bg-primary-foreground/20 px-1.5 py-0.5 rounded-full">
+        <span className={`text-sm font-medium truncate ${isCurrentPlayer ? 'text-primary' : 'text-foreground'}`}>
+          {name || <span className="text-muted-foreground italic">Empty slot</span>}
+        </span>
+        {isCurrentPlayer && (
+          <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 h-4 text-primary border-primary/40">
             You
-          </span>
+          </Badge>
         )}
       </div>
     );
   };
 
   return (
-    <div className={`bg-card border border-border rounded-xl overflow-hidden shadow-sm ${compact ? 'text-sm' : ''}`}>
-      {/* Header */}
-      <div className="bg-primary/10 px-4 py-2.5 flex items-center gap-2 border-b border-border">
-        <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center">
-          <Users className="w-3.5 h-3.5 text-primary-foreground" />
-        </div>
-        <span className="font-bold text-foreground">Court {courtNumber.toString()}</span>
-        <span className="ml-auto text-xs text-muted-foreground">{players.length}/4 players</span>
-      </div>
-
-      <div className={`p-3 space-y-3 ${compact ? 'p-2 space-y-2' : ''}`}>
-        {/* Team A */}
-        <div>
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 px-1">
-            Team A
+    <Card className="border-border shadow-sm">
+      <CardContent className="pt-3 pb-3 px-4">
+        {/* Court Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center">
+              <span className="text-xs font-bold text-primary">{courtNumber}</span>
+            </div>
+            <span className="text-sm font-semibold text-foreground">Court {courtNumber}</span>
           </div>
-          <div className="space-y-1.5">
-            {[0, 1].map((i) => renderSlot(teamA[i], i))}
-          </div>
+          <Badge variant="outline" className="text-xs">
+            {players.filter(Boolean).length}/4
+          </Badge>
         </div>
 
-        {/* Divider */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-xs font-bold text-muted-foreground">VS</span>
-          <div className="flex-1 h-px bg-border" />
+        {/* Teams */}
+        <div className="space-y-2">
+          {/* Team A */}
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
+              Team A
+            </p>
+            {[teamA[0], teamA[1]].map((name, i) => renderPlayerSlot(name, i))}
+          </div>
+
+          {/* VS divider */}
+          <div className="flex items-center gap-2 py-0.5">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-[10px] font-bold text-muted-foreground">VS</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          {/* Team B */}
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
+              Team B
+            </p>
+            {[teamB[0], teamB[1]].map((name, i) => renderPlayerSlot(name, i + 2))}
+          </div>
         </div>
 
-        {/* Team B */}
-        <div>
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 px-1">
-            Team B
+        {/* Submitted Scores Display */}
+        {hasSubmittedScores && (
+          <div className="mt-3 pt-3 border-t border-border">
+            <div className="flex items-center justify-between bg-muted/40 rounded-lg px-3 py-2">
+              <div className="text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Team A</p>
+                <p className="text-xl font-bold text-foreground">{submittedTeamAScore}</p>
+              </div>
+              <div className="text-muted-foreground font-bold text-sm">—</div>
+              <div className="text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Team B</p>
+                <p className="text-xl font-bold text-foreground">{submittedTeamBScore}</p>
+              </div>
+            </div>
+            {submittedTeamAScore !== submittedTeamBScore && (
+              <p className="text-xs text-center text-muted-foreground mt-1.5">
+                {submittedTeamAScore! > submittedTeamBScore! ? '🏆 Team A wins' : '🏆 Team B wins'}
+              </p>
+            )}
           </div>
-          <div className="space-y-1.5">
-            {[0, 1].map((i) => renderSlot(teamB[i], i))}
+        )}
+
+        {/* Score Entry (host, ranked, not yet submitted) */}
+        {showScoreEntry && !scoreSubmitted && !hasSubmittedScores && (
+          <div className="mt-3 pt-3 border-t border-border space-y-3">
+            <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-primary inline-block" />
+              Enter Round Score
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor={`score-a-${courtNumber}`} className="text-xs text-muted-foreground">
+                  Team A Score
+                </Label>
+                <Input
+                  id={`score-a-${courtNumber}`}
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={teamAScore}
+                  onChange={(e) => setTeamAScore(e.target.value)}
+                  disabled={isScoreSubmitting}
+                  className="h-9 text-center text-base font-bold"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor={`score-b-${courtNumber}`} className="text-xs text-muted-foreground">
+                  Team B Score
+                </Label>
+                <Input
+                  id={`score-b-${courtNumber}`}
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={teamBScore}
+                  onChange={(e) => setTeamBScore(e.target.value)}
+                  disabled={isScoreSubmitting}
+                  className="h-9 text-center text-base font-bold"
+                />
+              </div>
+            </div>
+            <Button
+              size="sm"
+              className="w-full h-8 text-xs"
+              onClick={handleScoreSubmit}
+              disabled={!isScoreValid || isScoreSubmitting}
+            >
+              {isScoreSubmitting ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : null}
+              Submit Score
+            </Button>
           </div>
-        </div>
-      </div>
-    </div>
+        )}
+
+        {/* Score submitted confirmation */}
+        {showScoreEntry && scoreSubmitted && !hasSubmittedScores && (
+          <div className="mt-3 pt-3 border-t border-border">
+            <div className="flex items-center gap-2 text-xs text-green-600">
+              <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+              <span className="font-medium">Score submitted for this court</span>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

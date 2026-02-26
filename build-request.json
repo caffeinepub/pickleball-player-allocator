@@ -1,38 +1,36 @@
 {
   "kind": "build_request",
-  "title": "Fix session hosting issue",
+  "title": "Retry failed deployment build",
   "priority": "high",
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "Investigate and fix the issue preventing users from successfully hosting a new pickleball session. This includes the full flow: submitting the SessionConfigForm (court count selection), calling the backend to create the session, receiving the session code, and navigating to the HostSessionDashboard. Ensure errors are caught and surfaced to the user with clear messages rather than silently failing.",
+      "text": "Rebuild and redeploy the full application (backend Motoko actor and React frontend) resolving any compilation or deployment errors that caused the previous build to fail.",
       "target": "both",
       "source": {
         "messageIds": [
-          "msg-4"
+          "msg-3"
         ],
         "quotes": [
-          "Facing Issue hosting a session"
+          "There was an development error re try"
         ]
       },
       "acceptanceCriteria": [
-        "A user can open the Create Session page and select a court count without errors.",
-        "Submitting the SessionConfigForm successfully calls the backend createSession (or equivalent) function.",
-        "On success, the session code is displayed in SessionCodeDisplay and the user can navigate to the HostSessionDashboard.",
-        "If the backend call fails, a descriptive error toast or message is shown to the user.",
-        "No unhandled promise rejections or console errors occur during the hosting flow.",
-        "The fix handles both authenticated (Internet Identity) and guest users if both are supported as hosts."
+        "Backend Motoko actor compiles without errors",
+        "Frontend React app builds without errors",
+        "Application deploys successfully to the Internet Computer",
+        "All existing features (session management, player profiles, match recording, game type selector, ranked toggle) remain functional after redeployment"
       ]
     }
   ],
   "constraints": [
-    "Do not modify files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui.",
-    "Keep all Motoko backend logic in backend/main.mo."
+    "Do not change any existing feature logic or data models",
+    "Do not modify immutable frontend paths (hooks/useInternetIdentity.ts, hooks/useActor.ts, main.tsx, components/ui)"
   ],
   "nonGoals": [
-    "Redesigning the session hosting UI.",
-    "Adding new session configuration options beyond what already exists.",
-    "Modifying the player join flow."
+    "Adding new features",
+    "Changing UI design or layout",
+    "Modifying backend data schema"
   ],
   "imageRequirements": {
     "required": [],

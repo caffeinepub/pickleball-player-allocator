@@ -3,22 +3,20 @@
   "projectStateVersion": 3,
   "summary": "New project",
   "architectural_notes": [],
-  "known_issues": [
-    "User reported issue with hosting a session"
-  ],
+  "known_issues": [],
   "isFixRequest": true,
-  "existing_features": [
+  "existing_features": [],
+  "new_feature_requests": [
     {
-      "id": "feature-investigate-and-fix-the-issue-preventing-users-from-successfully-hosting-a-new-pickleball-session-this-includes-the-full-flow-submitting-the-sessionconfigform-court-count-selection-calling-the-backend-to-create-the-session-receiving-the-session-code-and-navigating-to-the-hostsessiondashboard-ensure-errors-are-caught-and-surfaced-to-the-user-with-clear-messages-rather-than-silently-failing",
-      "title": "Investigate and fix the issue preventing users from successfully hosting a new pickleball session. This includes the full flow: submitting the SessionConfigForm (court count selection), calling the backend to create the session, receiving the session code, and navigating to the HostSessionDashboard. Ensure errors are caught and surfaced to the user with clear messages rather than silently failing.",
+      "id": "AR-1",
+      "summary": "Rebuild and redeploy the full application (backend Motoko actor and React frontend) resolving any compilation or deployment errors that caused the previous build to fail.",
       "reqIds": [
         "REQ-1"
       ],
-      "version": 1
+      "status": "pending"
     }
   ],
-  "new_feature_requests": [],
-  "projectName": "Fix session hosting issue",
+  "projectName": "Retry failed deployment build",
   "clarification_mode": "instant",
   "clarification_rounds": 0
 }

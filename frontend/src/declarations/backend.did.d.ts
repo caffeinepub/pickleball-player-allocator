@@ -10,11 +10,16 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface AllGamesRoundAssignments {
+  'round' : bigint,
+  'roundAssignments' : Array<RoundAssignments>,
+}
 export type Court = bigint;
 export interface CourtAssignment {
   'court' : Court,
   'players' : Array<PlayerId>,
 }
+export type GameCode = string;
 export type GameOutcome = { 'teamAWin' : null } |
   { 'teamBWin' : null };
 export type MatchId = bigint;
@@ -31,7 +36,14 @@ export interface RoundAssignments {
   'round' : bigint,
 }
 export interface SessionConfig {
+  'isRanked' : boolean,
+  'duration' : [] | [bigint],
+  'sessionCode' : GameCode,
+  'sessionType' : SessionType,
+  'venue' : [] | [string],
+  'date' : [] | [string],
   'host' : PlayerId,
+  'time' : [] | [string],
   'creationTime' : Time,
   'sessionId' : SessionId,
   'courts' : bigint,
@@ -44,35 +56,70 @@ export interface SessionCreationResult {
 export type SessionId = string;
 export interface SessionState {
   'assignments' : Array<CourtAssignment>,
+  'isCompleted' : boolean,
+  'previousWaitlist' : Array<PlayerId>,
   'currentRound' : bigint,
   'waitlist' : Array<PlayerId>,
   'matches' : Array<MatchResult>,
   'players' : Array<PlayerId>,
-  'allRounds' : Array<RoundAssignments>,
+  'allGamesAssignments' : Array<AllGamesRoundAssignments>,
   'config' : SessionConfig,
 }
+export type SessionType = { 'randomAllotment' : null } |
+  { 'kingQueenOfTheCourt' : null } |
+  { 'roundRobin' : null } |
+  { 'ladderLeague' : null };
 export type Time = bigint;
-export interface UserProfile { 'duprRating' : [] | [number], 'name' : string }
+export interface UserProfile {
+  'bio' : [] | [string],
+  'name' : string,
+  'mobileNumber' : string,
+  'workField' : [] | [string],
+  'profilePicture' : [] | [string],
+}
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addPlayerToSession' : ActorMethod<
-    [SessionId, string, [] | [number]],
+    [SessionId, string, string, [] | [string], [] | [string], [] | [string]],
     undefined
   >,
   'allocatePlayers' : ActorMethod<[SessionId], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'createPlayerProfile' : ActorMethod<[string, [] | [number]], PlayerId>,
-  'createSession' : ActorMethod<[bigint], SessionCreationResult>,
-  'getAllMatchups' : ActorMethod<[SessionId, bigint], Array<RoundAssignments>>,
+  'createPlayerProfile' : ActorMethod<[string], PlayerId>,
+  'createSession' : ActorMethod<
+    [
+      bigint,
+      [] | [string],
+      [] | [string],
+      [] | [string],
+      [] | [bigint],
+      GameCode,
+      SessionType,
+      boolean,
+    ],
+    SessionCreationResult
+  >,
+  'endGame' : ActorMethod<[SessionId], undefined>,
+  'endRound' : ActorMethod<[SessionId], undefined>,
+  'getAllGames' : ActorMethod<
+    [SessionId, bigint, bigint],
+    Array<AllGamesRoundAssignments>
+  >,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getSessionGameInfo' : ActorMethod<
+    [SessionId],
+    [string, [] | [string], [] | [string], [] | [string], [] | [bigint]]
+  >,
   'getSessionState' : ActorMethod<[SessionId], SessionState>,
+  'getSessionStateByCode' : ActorMethod<[string], SessionState>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'joinSession' : ActorMethod<[SessionId], undefined>,
+  'joinSessionByCode' : ActorMethod<[string], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'submitMatchResult' : ActorMethod<[SessionId, Court, GameOutcome], MatchId>,
 }
