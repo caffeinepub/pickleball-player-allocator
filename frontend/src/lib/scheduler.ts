@@ -1,110 +1,184 @@
-/**
- * Client-side fair round-robin scheduler for pickleball sessions.
- *
- * Since the backend uses the host's principal for all added players (making
- * all principals identical), we work with player indices (0, 1, 2, ...) and
- * map them to names via playerNamesList. This ensures proper rotation.
- */
+import { SessionType } from '../backend';
 
-export interface ScheduledCourtAssignment {
+export interface RoundAssignment {
   court: number;
-  playerIndices: number[]; // indices into playerNamesList
+  teamA: string[];
+  teamB: string[];
 }
 
-export interface ScheduledRound {
+export interface Round {
   round: number;
-  assignments: ScheduledCourtAssignment[];
-  waitlistIndices: number[]; // indices into playerNamesList
+  assignments: RoundAssignment[];
+  waitlist: string[];
+}
+
+export interface MatchScore {
+  court: number;
+  teamAScore: number;
+  teamBScore: number;
+  teamA: string[];
+  teamB: string[];
 }
 
 /**
- * Generate a fair round-robin schedule for all players.
- *
- * Algorithm:
- * - Maintain a rotation queue of player indices
- * - Each round: take the first (courts * 4) players for courts, rest go to waitlist
- * - Next round: waitlist players go to the FRONT of the queue (priority),
- *   players who played go to the BACK
- * - This ensures every player gets equal playing time over multiple rounds
- *
- * @param totalPlayers - total number of players
- * @param courts - number of courts available
- * @param totalRounds - how many rounds to generate
+ * Generate all rounds for a session.
+ * For ladder league and king/queen, scores from previous rounds influence next round matchups.
  */
-export function generateFairSchedule(
-  totalPlayers: number,
+export function generateRounds(
+  players: string[],
   courts: number,
-  totalRounds: number
-): ScheduledRound[] {
-  if (totalPlayers < 2 || courts < 1 || totalRounds < 1) return [];
+  totalRounds: number,
+  sessionType: SessionType,
+  completedScores: MatchScore[][] = []
+): Round[] {
+  if (players.length < 2) return [];
 
-  const playersPerCourt = 4;
-  const maxPlayersOnCourt = courts * playersPerCourt;
+  const rounds: Round[] = [];
+  let currentPlayers = [...players];
 
-  // Start with players in order 0..N-1
-  // We'll rotate this queue each round
-  let queue: number[] = Array.from({ length: totalPlayers }, (_, i) => i);
+  for (let r = 0; r < totalRounds; r++) {
+    const previousScores = completedScores[r - 1] || [];
 
-  const rounds: ScheduledRound[] = [];
-
-  for (let roundIdx = 0; roundIdx < totalRounds; roundIdx++) {
-    const assignments: ScheduledCourtAssignment[] = [];
-    const playing: number[] = [];
-    const waitlist: number[] = [];
-
-    // Assign players to courts in groups of 4
-    let remaining = [...queue];
-    for (let c = 1; c <= courts; c++) {
-      if (remaining.length >= playersPerCourt) {
-        const courtPlayers = remaining.splice(0, playersPerCourt);
-        assignments.push({ court: c, playerIndices: courtPlayers });
-        playing.push(...courtPlayers);
-      } else if (remaining.length > 0) {
-        // Not enough for a full court — put them on waitlist
-        waitlist.push(...remaining);
-        remaining = [];
-        break;
+    if (r > 0 && previousScores.length > 0) {
+      if (sessionType === SessionType.ladderLeague) {
+        currentPlayers = reorderForLadderLeague(currentPlayers, previousScores);
+      } else if (sessionType === SessionType.kingQueenOfTheCourt) {
+        currentPlayers = reorderForKingQueen(currentPlayers, previousScores, courts);
       }
     }
-    // Any leftover players go to waitlist
-    waitlist.push(...remaining);
 
-    rounds.push({
-      round: roundIdx + 1,
-      assignments,
-      waitlistIndices: waitlist,
-    });
-
-    // Build next round's queue:
-    // Waitlist players get priority (front), then players who played (back)
-    // Within each group, rotate by 1 to vary matchups
-    const nextWaitlistGroup = [...waitlist];
-    const nextPlayingGroup = [...playing];
-
-    // Rotate the playing group by 1 position to vary court assignments
-    if (nextPlayingGroup.length > 1) {
-      const rotateBy = (roundIdx + 1) % nextPlayingGroup.length;
-      queue = [
-        ...nextWaitlistGroup,
-        ...nextPlayingGroup.slice(rotateBy),
-        ...nextPlayingGroup.slice(0, rotateBy),
-      ];
-    } else {
-      queue = [...nextWaitlistGroup, ...nextPlayingGroup];
-    }
+    const previousWaitlist = r > 0 ? rounds[r - 1].waitlist : [];
+    const round = generateSingleRound(currentPlayers, courts, r + 1, previousWaitlist);
+    rounds.push(round);
   }
 
   return rounds;
 }
 
+function generateSingleRound(
+  players: string[],
+  courts: number,
+  roundNumber: number,
+  previousWaitlist: string[]
+): Round {
+  // Prioritize players who were on the waitlist last round
+  const prioritized = [
+    ...previousWaitlist,
+    ...players.filter((p) => !previousWaitlist.includes(p)),
+  ];
+
+  const assignments: RoundAssignment[] = [];
+  let remaining = [...prioritized];
+
+  for (let c = 1; c <= courts; c++) {
+    if (remaining.length >= 4) {
+      const courtPlayers = remaining.splice(0, 4);
+      assignments.push({
+        court: c,
+        teamA: [courtPlayers[0], courtPlayers[1]],
+        teamB: [courtPlayers[2], courtPlayers[3]],
+      });
+    } else if (remaining.length >= 2) {
+      const courtPlayers = remaining.splice(0, remaining.length);
+      const mid = Math.floor(courtPlayers.length / 2);
+      assignments.push({
+        court: c,
+        teamA: courtPlayers.slice(0, mid),
+        teamB: courtPlayers.slice(mid),
+      });
+    } else {
+      break;
+    }
+  }
+
+  return {
+    round: roundNumber,
+    assignments,
+    waitlist: remaining,
+  };
+}
+
 /**
- * Resolve player indices to names using the playerNamesList.
+ * Ladder League: winners move up, losers move down.
+ * Sort players by wins (descending) so top players face each other.
  */
-export function resolvePlayerNames(
-  indices: number[],
-  playerNamesList: string[]
+function reorderForLadderLeague(players: string[], scores: MatchScore[]): string[] {
+  const wins: Record<string, number> = {};
+  players.forEach((p) => (wins[p] = 0));
+
+  scores.forEach((score) => {
+    const winners = score.teamAScore > score.teamBScore ? score.teamA : score.teamB;
+    winners.forEach((p) => {
+      wins[p] = (wins[p] || 0) + 1;
+    });
+  });
+
+  return [...players].sort((a, b) => (wins[b] || 0) - (wins[a] || 0));
+}
+
+/**
+ * King/Queen of the Court: winners advance to higher courts, losers rotate down.
+ */
+function reorderForKingQueen(
+  players: string[],
+  scores: MatchScore[],
+  courts: number
 ): string[] {
-  return indices.map(
-    (i) => playerNamesList[i] || (i === 0 ? 'Host' : `Player ${i + 1}`)
-  );
+  // Build court order: court 1 is the "king" court (highest)
+  const courtOrder: string[][] = Array.from({ length: courts }, () => []);
+
+  scores.forEach((score) => {
+    const courtIdx = score.court - 1;
+    if (courtIdx >= 0 && courtIdx < courts) {
+      const winners = score.teamAScore > score.teamBScore ? score.teamA : score.teamB;
+      const losers = score.teamAScore > score.teamBScore ? score.teamB : score.teamA;
+
+      // Winners stay or move up (lower court index = higher court)
+      const winnerCourt = Math.max(0, courtIdx - 1);
+      // Losers move down
+      const loserCourt = Math.min(courts - 1, courtIdx + 1);
+
+      courtOrder[winnerCourt].push(...winners);
+      courtOrder[loserCourt].push(...losers);
+    }
+  });
+
+  // Players not in any court assignment stay in their current position
+  const assignedPlayers = new Set(courtOrder.flat());
+  const unassigned = players.filter((p) => !assignedPlayers.has(p));
+
+  return [...courtOrder.flat(), ...unassigned];
+}
+
+/**
+ * Calculate player rankings based on match scores.
+ * Returns players sorted by win rate (descending).
+ */
+export function calculateRankings(
+  players: string[],
+  allScores: MatchScore[][]
+): { playerId: string; wins: number; losses: number; winRate: number }[] {
+  const stats: Record<string, { wins: number; losses: number }> = {};
+  players.forEach((p) => (stats[p] = { wins: 0, losses: 0 }));
+
+  allScores.forEach((roundScores) => {
+    roundScores.forEach((score) => {
+      const winners = score.teamAScore > score.teamBScore ? score.teamA : score.teamB;
+      const losers = score.teamAScore > score.teamBScore ? score.teamB : score.teamA;
+      winners.forEach((p) => {
+        if (stats[p]) stats[p].wins++;
+      });
+      losers.forEach((p) => {
+        if (stats[p]) stats[p].losses++;
+      });
+    });
+  });
+
+  return players
+    .map((p) => {
+      const { wins, losses } = stats[p] || { wins: 0, losses: 0 };
+      const total = wins + losses;
+      return { playerId: p, wins, losses, winRate: total > 0 ? wins / total : 0 };
+    })
+    .sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
 }

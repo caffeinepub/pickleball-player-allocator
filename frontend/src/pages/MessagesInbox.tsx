@@ -1,60 +1,16 @@
 import React from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useInternetIdentity } from '../hooks/useInternetIdentity';
 import { useGetMailbox } from '../hooks/useQueries';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, MessageSquare, ChevronRight } from 'lucide-react';
-import LoadingGame from '../components/LoadingGame';
-import type { Conversation } from '../backend';
-
-function formatTime(timestamp: bigint): string {
-  const ms = Number(timestamp) / 1_000_000;
-  const date = new Date(ms);
-  const now = new Date();
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) {
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  } else if (diffDays === 1) {
-    return 'Yesterday';
-  } else if (diffDays < 7) {
-    return date.toLocaleDateString('en-US', { weekday: 'short' });
-  } else {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
-}
+import { ArrowLeft, MessageSquare, User, Loader2, ChevronRight } from 'lucide-react';
 
 export default function MessagesInbox() {
   const navigate = useNavigate();
-  const { identity } = useInternetIdentity();
-  const { data: conversations, isLoading, error } = useGetMailbox();
-
-  if (!identity) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-6 text-center">
-        <p className="text-muted-foreground">Please sign in to view messages.</p>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-6">
-        <LoadingGame message="Loading messages..." />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-6 text-center">
-        <p className="text-destructive text-sm">Failed to load messages.</p>
-      </div>
-    );
-  }
+  const { data: conversations = [], isLoading } = useGetMailbox();
 
   // Sort conversations by most recent message
-  const sortedConversations = [...(conversations ?? [])].sort((a, b) => {
+  const sorted = [...conversations].sort((a, b) => {
     const aLast = a.messages[a.messages.length - 1];
     const bLast = b.messages[b.messages.length - 1];
     if (!aLast) return 1;
@@ -63,85 +19,68 @@ export default function MessagesInbox() {
   });
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate({ to: '/' })}
-          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <h1 className="text-xl font-bold text-foreground font-display">Messages</h1>
-      </div>
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/' })}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <h1 className="text-lg font-semibold font-display">Messages</h1>
+      </header>
 
-      {sortedConversations.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-3">
-          <MessageSquare size={40} className="text-muted-foreground/40" />
-          <p className="text-muted-foreground text-sm">No messages yet.</p>
-          <p className="text-muted-foreground/60 text-xs">
-            Visit a player's profile to start a conversation.
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {sortedConversations.map((conv) => (
-            <ConversationRow
-              key={conv.participant.toString()}
-              conversation={conv}
-              onOpen={() =>
-                navigate({
-                  to: '/messages/$principal',
-                  params: { principal: conv.participant.toString() },
-                })
-              }
-            />
-          ))}
-        </div>
-      )}
+      <main className="flex-1 p-4 space-y-2">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : sorted.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+            <MessageSquare className="w-12 h-12 text-muted-foreground opacity-40" />
+            <p className="text-muted-foreground font-medium">No messages yet</p>
+            <p className="text-sm text-muted-foreground">
+              Start a conversation by visiting a player's profile.
+            </p>
+          </div>
+        ) : (
+          sorted.map((conv) => {
+            const participantId = conv.participant.toString();
+            const lastMsg = conv.messages[conv.messages.length - 1];
+            const shortId = participantId.slice(0, 8) + '...';
+
+            return (
+              <Card
+                key={participantId}
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() =>
+                  navigate({
+                    to: '/messages/$principalId',
+                    params: { principalId: participantId },
+                  })
+                }
+              >
+                <CardContent className="flex items-center gap-3 py-3 px-4">
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <User className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{shortId}</p>
+                    {lastMsg && (
+                      <p className="text-xs text-muted-foreground truncate">{lastMsg.text}</p>
+                    )}
+                  </div>
+                  {lastMsg && (
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(Number(lastMsg.timestamp) / 1_000_000).toLocaleDateString()}
+                      </p>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
+      </main>
     </div>
-  );
-}
-
-function ConversationRow({
-  conversation,
-  onOpen,
-}: {
-  conversation: Conversation;
-  onOpen: () => void;
-}) {
-  const lastMessage = conversation.messages[conversation.messages.length - 1];
-  const participantStr = conversation.participant.toString();
-  const shortId = participantStr.slice(0, 8) + '...';
-
-  return (
-    <Card
-      className="cursor-pointer hover:bg-muted/50 transition-colors"
-      onClick={onOpen}
-    >
-      <CardContent className="py-3 px-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
-            {shortId.slice(0, 2).toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-foreground truncate">{shortId}</p>
-              {lastMessage && (
-                <span className="text-xs text-muted-foreground shrink-0">
-                  {formatTime(lastMessage.timestamp)}
-                </span>
-              )}
-            </div>
-            {lastMessage && (
-              <p className="text-xs text-muted-foreground truncate mt-0.5">
-                {lastMessage.text}
-              </p>
-            )}
-          </div>
-          <ChevronRight size={16} className="text-muted-foreground shrink-0" />
-        </div>
-      </CardContent>
-    </Card>
   );
 }

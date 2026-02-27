@@ -1,69 +1,44 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { useInternetIdentity } from '../hooks/useInternetIdentity';
-import { useGetConversation, useSendMessage } from '../hooks/useQueries';
+import { useGetConversation, useSendMessage, useGetPublicProfile } from '../hooks/useQueries';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Send } from 'lucide-react';
-import LoadingGame from '../components/LoadingGame';
-import type { Message } from '../backend';
-
-function formatTime(timestamp: bigint): string {
-  const ms = Number(timestamp) / 1_000_000;
-  return new Date(ms).toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+import { Card } from '@/components/ui/card';
+import { ArrowLeft, Send, Loader2, User } from 'lucide-react';
 
 export default function ConversationThread() {
-  const { principal } = useParams({ from: '/messages/$principal' });
+  const { principalId } = useParams({ from: '/messages/$principalId' });
   const navigate = useNavigate();
   const { identity } = useInternetIdentity();
-  const myPrincipal = identity?.getPrincipal().toString();
 
-  const { data: messages, isLoading } = useGetConversation(principal);
-  const sendMessage = useSendMessage();
+  const myPrincipal = identity?.getPrincipal().toString();
+  const shortId = principalId ? principalId.slice(0, 8) + '...' : '';
+
+  const { data: messages = [], isLoading } = useGetConversation(principalId);
+  const { data: otherProfile } = useGetPublicProfile(principalId ?? null);
+  const sendMessageMutation = useSendMessage();
 
   const [text, setText] = useState('');
-  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const shortId = principal.slice(0, 8) + '...';
-
-  // Scroll to bottom on new messages
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, optimisticMessages]);
-
-  const allMessages = [...(messages ?? []), ...optimisticMessages].sort(
-    (a, b) => Number(a.timestamp) - Number(b.timestamp)
-  );
+  }, [messages]);
 
   const handleSend = async () => {
-    const trimmed = text.trim();
-    if (!trimmed || !identity) return;
-
-    // Optimistic update
-    const optimistic: Message = {
-      sender: identity.getPrincipal(),
-      recipient: { toString: () => principal } as any,
-      text: trimmed,
-      timestamp: BigInt(Date.now()) * BigInt(1_000_000),
-    };
-    setOptimisticMessages((prev) => [...prev, optimistic]);
+    if (!text.trim() || !principalId) return;
+    const messageText = text.trim();
     setText('');
-
     try {
-      await sendMessage.mutateAsync({
-        recipientPrincipal: principal,
-        text: trimmed,
+      await sendMessageMutation.mutateAsync({
+        recipientId: principalId,
+        text: messageText,
       });
-      // Clear optimistic after real message arrives
-      setOptimisticMessages([]);
     } catch (err) {
       console.error('Failed to send message:', err);
-      setOptimisticMessages((prev) => prev.filter((m) => m !== optimistic));
+      setText(messageText);
     }
   };
 
@@ -74,92 +49,90 @@ export default function ConversationThread() {
     }
   };
 
-  if (!identity) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-6 text-center">
-        <p className="text-muted-foreground">Please sign in to view messages.</p>
-      </div>
-    );
-  }
+  const otherName = otherProfile?.name ?? shortId;
 
   return (
-    <div className="max-w-lg mx-auto flex flex-col h-[calc(100vh-3.5rem-4rem)]">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background sticky top-0 z-10">
-        <button
-          onClick={() => navigate({ to: '/messages' })}
-          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-          {shortId.slice(0, 2).toUpperCase()}
+      <header className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/messages' })}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+            <User className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">{otherName}</p>
+            <p className="text-xs text-muted-foreground">{shortId}</p>
+          </div>
         </div>
-        <div>
-          <p className="text-sm font-semibold text-foreground">{shortId}</p>
-          <p className="text-xs text-muted-foreground">Player</p>
-        </div>
-      </div>
+      </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+      <main className="flex-1 overflow-y-auto p-4 space-y-3">
         {isLoading ? (
-          <LoadingGame message="Loading conversation..." />
-        ) : allMessages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center flex-1 gap-2 py-12">
-            <p className="text-muted-foreground text-sm">No messages yet.</p>
-            <p className="text-muted-foreground/60 text-xs">Say hello! 👋</p>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <p className="text-sm">No messages yet. Say hello!</p>
           </div>
         ) : (
-          allMessages.map((msg, idx) => {
-            const isMine = msg.sender.toString() === myPrincipal;
+          messages.map((msg, idx) => {
+            const isMe = msg.sender.toString() === myPrincipal;
             return (
               <div
                 key={idx}
-                className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
               >
-                <div
-                  className={`max-w-[75%] rounded-2xl px-3.5 py-2 ${
-                    isMine
-                      ? 'bg-primary text-primary-foreground rounded-br-sm'
-                      : 'bg-muted text-foreground rounded-bl-sm'
+                <Card
+                  className={`max-w-[75%] px-3 py-2 ${
+                    isMe
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-muted border-border'
                   }`}
                 >
-                  <p className="text-sm leading-relaxed">{msg.text}</p>
+                  <p className="text-sm">{msg.text}</p>
                   <p
-                    className={`text-[10px] mt-0.5 ${
-                      isMine ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                    className={`text-xs mt-1 ${
+                      isMe ? 'text-primary-foreground/70' : 'text-muted-foreground'
                     }`}
                   >
-                    {formatTime(msg.timestamp)}
+                    {new Date(Number(msg.timestamp) / 1_000_000).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
                   </p>
-                </div>
+                </Card>
               </div>
             );
           })
         )}
         <div ref={bottomRef} />
-      </div>
+      </main>
 
       {/* Input */}
-      <div className="px-4 py-3 border-t border-border bg-background">
-        <div className="flex gap-2">
-          <Input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
-            disabled={sendMessage.isPending}
-            className="flex-1"
-          />
-          <Button
-            onClick={handleSend}
-            disabled={!text.trim() || sendMessage.isPending}
-            size="icon"
-          >
-            <Send size={16} />
-          </Button>
-        </div>
+      <div className="sticky bottom-0 bg-background border-t border-border p-3 flex gap-2">
+        <Input
+          placeholder="Type a message..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="flex-1"
+        />
+        <Button
+          size="icon"
+          onClick={handleSend}
+          disabled={!text.trim() || sendMessageMutation.isPending}
+        >
+          {sendMessageMutation.isPending ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-4 h-4" />
+          )}
+        </Button>
       </div>
     </div>
   );

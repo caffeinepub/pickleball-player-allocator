@@ -1,151 +1,117 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Trophy, Users, Calendar } from 'lucide-react';
-import { Ghost } from 'lucide-react';
+import React from 'react';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import CourtAssignmentCard from './CourtAssignmentCard';
-import type { ScheduledRound } from '../lib/scheduler';
-import { resolvePlayerNames } from '../lib/scheduler';
+import { Ghost, Clock } from 'lucide-react';
+import { Round } from '../lib/scheduler';
 
 interface AllRoundsScheduleProps {
-  /** Client-side generated fair schedule */
-  scheduledRounds?: ScheduledRound[];
-  /** String array of player names indexed by player position */
-  playerNamesList: string[];
-  currentRound: number;
-  currentPlayerIndex?: number;
+  rounds: Round[];
+  playerNames?: Record<string, string>;
+  guestPlayerIds?: string[];
+  currentRound?: number;
 }
 
 export default function AllRoundsSchedule({
-  scheduledRounds,
-  playerNamesList,
-  currentRound,
-  currentPlayerIndex,
+  rounds,
+  playerNames = {},
+  guestPlayerIds = [],
+  currentRound = 0,
 }: AllRoundsScheduleProps) {
-  const [expandedKey, setExpandedKey] = useState<string | null>('round-0');
-
-  const currentPlayerName =
-    currentPlayerIndex !== undefined
-      ? playerNamesList[currentPlayerIndex]
-      : undefined;
-
-  const renderRoundContent = (round: ScheduledRound) => {
-    return (
-      <div className="p-4 space-y-3 bg-background">
-        {round.assignments.map(({ court, playerIndices }) => {
-          const names = resolvePlayerNames(playerIndices, playerNamesList);
-          const mid = Math.floor(names.length / 2);
-          const teamA = names.slice(0, mid);
-          const teamB = names.slice(mid);
-          return (
-            <CourtAssignmentCard
-              key={court}
-              court={BigInt(court)}
-              teamA={teamA}
-              teamB={teamB}
-              currentPlayer={currentPlayerName}
-            />
-          );
-        })}
-        {round.waitlistIndices.length > 0 && (
-          <div className="mt-3 p-3 bg-muted/50 rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <Users className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-muted-foreground">
-                Waitlist ({round.waitlistIndices.length})
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {resolvePlayerNames(round.waitlistIndices, playerNamesList).map(
-                (name, wIdx) => {
-                  const isCurrentPlayer =
-                    currentPlayerName !== undefined && name === currentPlayerName;
-                  return (
-                    <span
-                      key={wIdx}
-                      className={`text-xs px-2 py-1 rounded-full ${
-                        isCurrentPlayer
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {name}
-                    </span>
-                  );
-                }
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const rounds = scheduledRounds ?? [];
-
   if (rounds.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        <Trophy className="w-12 h-12 mx-auto mb-3 opacity-30" />
-        <p className="font-medium">No rounds scheduled yet</p>
-        <p className="text-sm mt-1">Allocate players to generate the schedule</p>
+      <div className="text-center py-8 text-muted-foreground text-sm">
+        No schedule generated yet. Add players to see the schedule.
       </div>
     );
   }
 
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 mb-1">
-        <Calendar className="w-4 h-4 text-primary" />
-        <span className="text-sm font-semibold text-foreground">
-          Full Schedule — {rounds.length} rounds
-        </span>
-      </div>
-      {rounds.map((round, idx) => {
-        const roundNum = round.round;
-        const isCurrentRound = roundNum === currentRound - 1;
-        const key = `round-${idx}`;
-        const isExpanded = expandedKey === key;
+  const getName = (id: string) => playerNames[id] || id.slice(0, 8) + '...';
+  const isGuest = (id: string) => guestPlayerIds.includes(id) || id.startsWith('guest-');
 
-        return (
-          <div
-            key={key}
-            className={`border rounded-xl overflow-hidden ${
-              isCurrentRound ? 'border-primary shadow-card' : 'border-border'
-            }`}
-          >
-            <button
-              className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${
-                isCurrentRound ? 'bg-primary/10' : 'bg-card hover:bg-muted/50'
-              }`}
-              onClick={() => setExpandedKey(isExpanded ? null : key)}
-            >
-              <div className="flex items-center gap-2">
-                <Trophy
-                  className={`w-4 h-4 ${
-                    isCurrentRound ? 'text-primary' : 'text-muted-foreground'
-                  }`}
-                />
-                <span
-                  className={`font-semibold ${isCurrentRound ? 'text-primary' : ''}`}
-                >
-                  Round {roundNum}
-                </span>
-                {isCurrentRound && (
-                  <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
-                    Current
-                  </span>
-                )}
-              </div>
-              {isExpanded ? (
-                <ChevronUp className="w-4 h-4 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+  return (
+    <Accordion
+      type="single"
+      collapsible
+      defaultValue={`round-${currentRound}`}
+      className="space-y-2"
+    >
+      {rounds.map((round, idx) => (
+        <AccordionItem
+          key={round.round}
+          value={`round-${idx}`}
+          className={`border rounded-xl overflow-hidden ${
+            idx === currentRound
+              ? 'border-primary/60 bg-primary/5'
+              : 'border-border bg-card'
+          }`}
+        >
+          <AccordionTrigger className="px-4 py-3 hover:no-underline">
+            <div className="flex items-center gap-3">
+              <span className="font-semibold text-sm">Round {round.round}</span>
+              {idx === currentRound && (
+                <Badge variant="default" className="text-xs">Current</Badge>
               )}
-            </button>
-            {isExpanded && renderRoundContent(round)}
-          </div>
-        );
-      })}
-    </div>
+              <span className="text-xs text-muted-foreground ml-auto mr-2">
+                {round.assignments.length} court{round.assignments.length !== 1 ? 's' : ''}
+                {round.waitlist.length > 0 && ` · ${round.waitlist.length} waiting`}
+              </span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="px-4 pb-4 space-y-3">
+            {round.assignments.map((assignment) => (
+              <div key={assignment.court} className="bg-background rounded-lg p-3 border border-border/60">
+                <p className="text-xs font-semibold text-muted-foreground mb-2">
+                  Court {assignment.court}
+                </p>
+                <div className="flex items-center gap-2 flex-wrap text-sm">
+                  <div className="flex flex-wrap gap-1">
+                    {assignment.teamA.map((id) => (
+                      <span
+                        key={id}
+                        className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                          isGuest(id)
+                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                            : 'bg-primary/10 text-primary'
+                        }`}
+                      >
+                        {isGuest(id) && <Ghost className="h-2.5 w-2.5 inline mr-0.5" />}
+                        {getName(id)}
+                      </span>
+                    ))}
+                  </div>
+                  <span className="text-xs font-bold text-muted-foreground">vs</span>
+                  <div className="flex flex-wrap gap-1">
+                    {assignment.teamB.map((id) => (
+                      <span
+                        key={id}
+                        className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                          isGuest(id)
+                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                            : 'bg-secondary/30 text-secondary-foreground'
+                        }`}
+                      >
+                        {isGuest(id) && <Ghost className="h-2.5 w-2.5 inline mr-0.5" />}
+                        {getName(id)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {round.waitlist.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Clock className="h-3.5 w-3.5" />
+                <span>Waiting: {round.waitlist.map(getName).join(', ')}</span>
+              </div>
+            )}
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+    </Accordion>
   );
 }

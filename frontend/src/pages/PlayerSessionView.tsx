@@ -1,260 +1,284 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { useGetSession } from '../hooks/useQueries';
-import { useInternetIdentity } from '../hooks/useInternetIdentity';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useActor } from '../hooks/useActor';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, UserX, Trophy, Clock } from 'lucide-react';
 import CourtAssignmentCard from '../components/CourtAssignmentCard';
 import WaitlistPanel from '../components/WaitlistPanel';
 import AllRoundsSchedule from '../components/AllRoundsSchedule';
-import SessionCodeDisplay from '../components/SessionCodeDisplay';
-import type { GuestPlayer } from '../backend';
-import { generateFairSchedule } from '../lib/scheduler';
+import { ChevronLeft, ChevronRight, Loader2, AlertTriangle, Play } from 'lucide-react';
+import { generateRounds } from '../lib/scheduler';
 
-interface PlayerName {
-  id: string;
-  name: string;
-  isGuest?: boolean;
-}
-
-function guestPlayerToId(guest: GuestPlayer): string {
-  return `guest-${Number(guest.guestId)}`;
-}
-
-function resolvePlayerNameFromList(
-  playerId: string,
-  playerNames: PlayerName[],
-  guestPlayers: GuestPlayer[]
-): string {
-  if (playerId.startsWith('guest-')) {
-    const guestId = parseInt(playerId.replace('guest-', ''), 10);
-    const guest = guestPlayers.find(g => Number(g.guestId) === guestId);
-    return guest ? guest.name : 'Guest Player';
-  }
-  const found = playerNames.find(p => p.id === playerId);
-  return found ? found.name : playerId.slice(0, 8) + '...';
-}
+type PlayerProfile = { name: string; mobileNumber: string };
 
 export default function PlayerSessionView() {
   const { sessionId } = useParams({ from: '/session/$sessionId' });
   const navigate = useNavigate();
-  const { identity } = useInternetIdentity();
-  const currentUserPrincipal = identity?.getPrincipal().toString();
+  const { actor } = useActor();
 
-  const { data: session, isLoading, error } = useGetSession(sessionId);
-  const [activeTab, setActiveTab] = useState('courts');
+  const { data: session, isLoading } = useGetSession(sessionId);
+  const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
+  const [playerProfiles, setPlayerProfiles] = useState<Record<string, PlayerProfile>>({});
+  const [profilesLoading, setProfilesLoading] = useState<Set<string>>(new Set());
 
-  // Build combined player list: registered + guests
-  const allPlayerIds: string[] = useMemo(() => {
-    if (!session) return [];
-    const registered = session.players.map(p => p.toString());
-    const guests = session.guestPlayers.map(g => guestPlayerToId(g));
+  const fetchPlayerProfile = useCallback(
+    async (principalId: string) => {
+      if (!actor || playerProfiles[principalId] || profilesLoading.has(principalId)) return;
+      setProfilesLoading((prev) => new Set(prev).add(principalId));
+      try {
+        const { Principal } = await import('@dfinity/principal');
+        const profile = await actor.getUserProfile(Principal.fromText(principalId));
+        if (profile) {
+          setPlayerProfiles((prev) => ({
+            ...prev,
+            [principalId]: { name: profile.name, mobileNumber: profile.mobileNumber },
+          }));
+        }
+      } catch {
+        // ignore
+      } finally {
+        setProfilesLoading((prev) => {
+          const next = new Set(prev);
+          next.delete(principalId);
+          return next;
+        });
+      }
+    },
+    [actor, playerProfiles, profilesLoading]
+  );
+
+  const playerNames = useMemo(() => {
+    if (!session) return {} as Record<string, string>;
+    const names: Record<string, string> = {};
+    session.players.forEach((p) => {
+      const pid = p.toString();
+      if (playerProfiles[pid]) {
+        names[pid] = playerProfiles[pid].name;
+      } else {
+        fetchPlayerProfile(pid);
+        names[pid] = pid.slice(0, 8) + '...';
+      }
+    });
+    session.guestPlayers.forEach((g) => {
+      names[`guest-${g.guestId}`] = g.name;
+    });
+    return names;
+  }, [session, playerProfiles, fetchPlayerProfile]);
+
+  const playerUsernames = useMemo(() => {
+    if (!session) return {} as Record<string, string>;
+    const usernames: Record<string, string> = {};
+    session.players.forEach((p) => {
+      const pid = p.toString();
+      if (playerProfiles[pid]?.mobileNumber) {
+        usernames[pid] = playerProfiles[pid].mobileNumber;
+      }
+    });
+    return usernames;
+  }, [session, playerProfiles]);
+
+  const guestPlayerIds = useMemo(() => {
+    if (!session) return [] as string[];
+    return session.guestPlayers.map((g) => `guest-${g.guestId}`);
+  }, [session]);
+
+  const allPlayerIds = useMemo(() => {
+    if (!session) return [] as string[];
+    const registered = session.players.map((p) => p.toString());
+    const guests = session.guestPlayers.map((g) => `guest-${g.guestId}`);
     return [...registered, ...guests];
   }, [session]);
 
-  const playerNames: PlayerName[] = useMemo(() => {
-    if (!session) return [];
-    const names: PlayerName[] = session.players.map(p => ({
-      id: p.toString(),
-      name: p.toString().slice(0, 8) + '...',
-      isGuest: false,
-    }));
-    session.guestPlayers.forEach(guest => {
-      names.push({
-        id: guestPlayerToId(guest),
-        name: guest.name,
-        isGuest: true,
-      });
-    });
-    return names;
-  }, [session]);
+  const rounds = useMemo(() => {
+    if (!session || allPlayerIds.length < 2) return [];
+    const courts = Number(session.config.courts);
+    const duration = session.config.duration ? Number(session.config.duration) : 60;
+    const gameDuration = 15;
+    const totalRounds = Math.max(1, Math.floor(duration / gameDuration));
+    return generateRounds(allPlayerIds, courts, totalRounds, session.config.sessionType);
+  }, [session, allPlayerIds]);
 
-  const totalPlayers = allPlayerIds.length;
-  const courts = Number(session?.config.courts ?? 1);
-  const totalRounds = totalPlayers > 1 ? Math.max(totalPlayers, courts * 2) : 0;
-
-  const fairSchedule = useMemo(() => {
-    if (totalPlayers < 2) return [];
-    return generateFairSchedule(totalPlayers, courts, totalRounds);
-  }, [totalPlayers, courts, totalRounds]);
-
-  // Player names as string array for AllRoundsSchedule (index-based)
-  const playerNamesStringList: string[] = useMemo(() => {
-    return allPlayerIds.map(id =>
-      resolvePlayerNameFromList(id, playerNames, session?.guestPlayers ?? [])
-    );
-  }, [allPlayerIds, playerNames, session]);
-
-  // Current round assignments (first round of fair schedule)
-  const resolvedAssignments = useMemo(() => {
-    if (!session || fairSchedule.length === 0) return [];
-    const firstRound = fairSchedule[0];
-    return firstRound.assignments.map(({ court, playerIndices }) => {
-      const playerIdList = playerIndices.map(i => allPlayerIds[i] ?? '');
-      const names = playerIdList.map(id =>
-        resolvePlayerNameFromList(id, playerNames, session.guestPlayers)
-      );
-      const mid = Math.floor(names.length / 2);
-      const teamA = names.slice(0, mid);
-      const teamB = names.slice(mid);
-      const guestNames = playerIdList
-        .filter(id => id.startsWith('guest-'))
-        .map(id => resolvePlayerNameFromList(id, playerNames, session.guestPlayers));
-      return {
-        courtBigInt: BigInt(court),
-        court,
-        teamA,
-        teamB,
-        guestNames,
-      };
-    });
-  }, [session, fairSchedule, allPlayerIds, playerNames]);
-
-  // Waitlist for current round
-  const currentWaitlist = useMemo(() => {
-    if (!session || fairSchedule.length === 0) return [];
-    const firstRound = fairSchedule[0];
-    return firstRound.waitlistIndices.map(i => {
-      const id = allPlayerIds[i] ?? '';
-      const isGuest = id.startsWith('guest-');
-      return {
-        id,
-        name: resolvePlayerNameFromList(id, playerNames, session.guestPlayers),
-        isGuest,
-      };
-    });
-  }, [session, fairSchedule, allPlayerIds, playerNames]);
+  const totalRounds = rounds.length;
+  const currentRound = rounds[currentRoundIndex];
+  const canGoNext = currentRoundIndex < totalRounds - 1;
+  const canGoPrev = currentRoundIndex > 0;
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-3">
-          <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground">Loading session...</p>
-        </div>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
-  if (error || !session) {
+  if (!session) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-4">
-          <UserX className="w-12 h-12 text-destructive mx-auto" />
-          <h2 className="text-xl font-bold">Session Not Found</h2>
-          <p className="text-muted-foreground">
-            This session doesn't exist or has been removed.
-          </p>
-          <Button onClick={() => navigate({ to: '/' })}>Go Home</Button>
-        </div>
+      <div className="max-w-2xl mx-auto px-4 py-8 text-center space-y-4">
+        <AlertTriangle className="h-12 w-12 text-destructive mx-auto" />
+        <h2 className="text-xl font-bold">Session not found</h2>
+        <Button onClick={() => navigate({ to: '/' })}>Go Home</Button>
       </div>
     );
   }
-
-  const totalPlayersCount = session.players.length + session.guestPlayers.length;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold font-display">Session View</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {session.config.venue || 'Session'} · {session.config.date || 'Today'}
-        </p>
+      <div className="space-y-2">
+        <h1 className="text-xl font-bold text-foreground">
+          {session.config.venue || 'Game Session'}
+        </h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant={session.config.isRanked ? 'default' : 'secondary'}>
+            {session.config.isRanked ? 'Ranked' : 'Unranked'}
+          </Badge>
+          <Badge variant="outline" className="capitalize">
+            {String(session.config.sessionType).replace(/([A-Z])/g, ' $1').trim()}
+          </Badge>
+          {session.isCompleted && <Badge variant="destructive">Ended</Badge>}
+        </div>
       </div>
 
-      {/* Session Code */}
-      <SessionCodeDisplay
-        sessionCode={session.config.sessionCode}
-        sessionId={sessionId}
-      />
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <Card className="text-center p-3">
-          <div className="text-2xl font-bold text-primary">{totalPlayersCount}</div>
-          <div className="text-xs text-muted-foreground mt-1">Players</div>
-        </Card>
-        <Card className="text-center p-3">
-          <div className="text-2xl font-bold text-primary">
-            {Number(session.config.courts)}
+      {/* Round Navigation */}
+      {totalRounds > 0 && (
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentRoundIndex((i) => i - 1)}
+              disabled={!canGoPrev}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Prev
+            </Button>
+            <div className="text-center">
+              <p className="font-bold text-foreground">Round {currentRoundIndex + 1}</p>
+              <p className="text-xs text-muted-foreground">of {totalRounds}</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentRoundIndex((i) => i + 1)}
+              disabled={!canGoNext}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
           </div>
-          <div className="text-xs text-muted-foreground mt-1">Courts</div>
-        </Card>
-        <Card className="text-center p-3">
-          <div className="text-2xl font-bold text-primary">
-            {session.guestPlayers.length}
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">Guests</div>
-        </Card>
-      </div>
+        </div>
+      )}
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full grid grid-cols-3">
-          <TabsTrigger value="courts">Courts</TabsTrigger>
-          <TabsTrigger value="waitlist">Waitlist</TabsTrigger>
-          <TabsTrigger value="schedule">Schedule</TabsTrigger>
+      <Tabs defaultValue="courts">
+        <TabsList className="w-full">
+          <TabsTrigger value="courts" className="flex-1">Courts</TabsTrigger>
+          <TabsTrigger value="players" className="flex-1">
+            Players ({allPlayerIds.length})
+          </TabsTrigger>
+          <TabsTrigger value="schedule" className="flex-1">Schedule</TabsTrigger>
         </TabsList>
 
         {/* Courts Tab */}
         <TabsContent value="courts" className="space-y-4 mt-4">
-          {resolvedAssignments.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <Trophy className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">
-                  {totalPlayersCount < 4
-                    ? `Need at least 4 players to assign courts (${totalPlayersCount} currently)`
-                    : 'No court assignments yet'}
-                </p>
-              </CardContent>
-            </Card>
+          {currentRound ? (
+            <>
+              {currentRound.assignments.map((assignment) => (
+                <CourtAssignmentCard
+                  key={assignment.court}
+                  court={BigInt(assignment.court)}
+                  teamA={assignment.teamA}
+                  teamB={assignment.teamB}
+                  guestPlayerIds={guestPlayerIds}
+                  playerNames={playerNames}
+                  playerUsernames={playerUsernames}
+                  isHost={false}
+                  round={currentRoundIndex + 1}
+                />
+              ))}
+              {currentRound.waitlist.length > 0 && (
+                <WaitlistPanel
+                  waitlist={currentRound.waitlist}
+                  playerNames={playerNames}
+                  playerUsernames={playerUsernames}
+                  guestPlayerIds={guestPlayerIds}
+                />
+              )}
+            </>
           ) : (
-            resolvedAssignments.map(assignment => (
-              <CourtAssignmentCard
-                key={assignment.courtBigInt.toString()}
-                court={assignment.courtBigInt}
-                teamA={assignment.teamA}
-                teamB={assignment.teamB}
-                currentPlayer={currentUserPrincipal}
-                guestPlayerIds={assignment.guestNames}
-              />
-            ))
+            <div className="text-center py-8 text-muted-foreground">
+              <Play className="h-10 w-10 mx-auto mb-2 opacity-40" />
+              <p>Waiting for court assignments...</p>
+            </div>
           )}
         </TabsContent>
 
-        {/* Waitlist Tab */}
-        <TabsContent value="waitlist" className="mt-4">
-          <WaitlistPanel
-            waitlist={currentWaitlist}
-            currentPlayerId={currentUserPrincipal}
-          />
+        {/* Players Tab */}
+        <TabsContent value="players" className="space-y-4 mt-4">
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="divide-y divide-border/40">
+              {session.players.map((p) => {
+                const pid = p.toString();
+                const profile = playerProfiles[pid];
+                const isHostPlayer = pid === session.config.host.toString();
+                return (
+                  <div key={pid} className="px-4 py-3 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-primary">
+                        {(profile?.name || pid)[0].toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-foreground truncate">
+                          {profile?.name || pid.slice(0, 12) + '...'}
+                        </span>
+                        {isHostPlayer && (
+                          <Badge variant="default" className="text-xs py-0">
+                            Host
+                          </Badge>
+                        )}
+                      </div>
+                      {profile?.mobileNumber && (
+                        <span className="text-xs text-muted-foreground">
+                          @{profile.mobileNumber}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {session.guestPlayers.map((g) => (
+                <div key={g.guestId.toString()} className="px-4 py-3 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-bold text-amber-600">G</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="font-medium text-sm text-foreground">{g.name}</span>
+                    <div className="mt-0.5">
+                      <Badge
+                        variant="outline"
+                        className="text-xs py-0 text-amber-600 border-amber-500/40"
+                      >
+                        Guest
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </TabsContent>
 
         {/* Schedule Tab */}
-        <TabsContent value="schedule" className="space-y-4 mt-4">
-          {fairSchedule.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <Clock className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">
-                  {totalPlayersCount < 2
-                    ? 'Need at least 2 players to generate a schedule'
-                    : 'No schedule generated yet'}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <AllRoundsSchedule
-              scheduledRounds={fairSchedule}
-              playerNamesList={playerNamesStringList}
-              currentRound={Number(session.currentRound)}
-            />
-          )}
+        <TabsContent value="schedule" className="mt-4">
+          <AllRoundsSchedule
+            rounds={rounds}
+            playerNames={playerNames}
+            guestPlayerIds={guestPlayerIds}
+            currentRound={currentRoundIndex}
+          />
         </TabsContent>
       </Tabs>
     </div>

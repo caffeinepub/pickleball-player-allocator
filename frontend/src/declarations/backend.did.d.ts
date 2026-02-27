@@ -10,6 +10,14 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export type AddPlayerResult = { 'ok' : null } |
+  { 'guestAdded' : GuestPlayer } |
+  { 'notHost' : null } |
+  { 'invalidInput' : null } |
+  { 'unknownError' : null } |
+  { 'invalidGuestName' : null } |
+  { 'playerAlreadyExists' : null } |
+  { 'sessionNotFound' : null };
 export interface AllGamesRoundAssignments {
   'round' : bigint,
   'roundAssignments' : Array<RoundAssignments>,
@@ -31,6 +39,10 @@ export interface CourtAssignment {
   'court' : Court,
   'players' : Array<PlayerId>,
 }
+export type EndSessionResult = { 'ok' : null } |
+  { 'notHost' : null } |
+  { 'alreadyEnded' : null } |
+  { 'sessionNotFound' : null };
 export type GameCode = string;
 export type GameOutcome = { 'teamAWin' : null } |
   { 'teamBWin' : null };
@@ -126,16 +138,6 @@ export type UserRole = { 'admin' : null } |
   { 'guest' : null };
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
-  'addGuestPlayer' : ActorMethod<
-    [string, string],
-    { 'ok' : GuestPlayer } |
-      { 'err' : string }
-  >,
-  'addPlayerToSession' : ActorMethod<
-    [SessionId, Principal],
-    { 'ok' : SessionState } |
-      { 'err' : string }
-  >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'createGuestProfile' : ActorMethod<
     [string, string, [] | [string], [] | [string], [] | [string]],
@@ -154,6 +156,7 @@ export interface _SERVICE {
     ],
     SessionCreationResult
   >,
+  'endSession' : ActorMethod<[SessionId], EndSessionResult>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getConversation' : ActorMethod<[Principal], Array<Message>>,
@@ -168,6 +171,10 @@ export interface _SERVICE {
   >,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getUserProfileAdmin' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'hostAddPlayer' : ActorMethod<
+    [SessionId, [] | [Principal], [] | [string]],
+    AddPlayerResult
+  >,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'joinSession' : ActorMethod<
     [GameCode, string],
@@ -175,7 +182,7 @@ export interface _SERVICE {
       { 'err' : string }
   >,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
-  'searchPlayersByName' : ActorMethod<[string], Array<PlayerSearchResult>>,
+  'searchPlayers' : ActorMethod<[string], Array<PlayerSearchResult>>,
   'sendMessage' : ActorMethod<[Principal, string], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;

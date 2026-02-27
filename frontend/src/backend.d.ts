@@ -22,6 +22,31 @@ export interface CourtAssignment {
     court: Court;
     players: Array<PlayerId>;
 }
+export type AddPlayerResult = {
+    __kind__: "ok";
+    ok: null;
+} | {
+    __kind__: "guestAdded";
+    guestAdded: GuestPlayer;
+} | {
+    __kind__: "notHost";
+    notHost: null;
+} | {
+    __kind__: "invalidInput";
+    invalidInput: null;
+} | {
+    __kind__: "unknownError";
+    unknownError: null;
+} | {
+    __kind__: "invalidGuestName";
+    invalidGuestName: null;
+} | {
+    __kind__: "playerAlreadyExists";
+    playerAlreadyExists: null;
+} | {
+    __kind__: "sessionNotFound";
+    sessionNotFound: null;
+};
 export interface RoundAssignments {
     assignments: Array<CourtAssignment>;
     waitlist: Array<PlayerId>;
@@ -114,6 +139,12 @@ export interface SessionState {
     lastGuestId: GuestId;
     config: SessionConfig;
 }
+export enum EndSessionResult {
+    ok = "ok",
+    notHost = "notHost",
+    alreadyEnded = "alreadyEnded",
+    sessionNotFound = "sessionNotFound"
+}
 export enum GameOutcome {
     teamAWin = "teamAWin",
     teamBWin = "teamBWin"
@@ -130,23 +161,10 @@ export enum UserRole {
     guest = "guest"
 }
 export interface backendInterface {
-    addGuestPlayer(sessionId: string, name: string): Promise<{
-        __kind__: "ok";
-        ok: GuestPlayer;
-    } | {
-        __kind__: "err";
-        err: string;
-    }>;
-    addPlayerToSession(sessionId: SessionId, playerId: Principal): Promise<{
-        __kind__: "ok";
-        ok: SessionState;
-    } | {
-        __kind__: "err";
-        err: string;
-    }>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     createGuestProfile(name: string, mobileNumber: string, bio: string | null, profilePicture: string | null, workField: string | null): Promise<PublicProfile>;
     createSession(courts: bigint, date: string | null, time: string | null, venue: string | null, duration: bigint | null, sessionCode: GameCode, sessionType: SessionType, isRanked: boolean): Promise<SessionCreationResult>;
+    endSession(sessionId: SessionId): Promise<EndSessionResult>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getConversation(otherPrincipal: Principal): Promise<Array<Message>>;
@@ -163,6 +181,7 @@ export interface backendInterface {
     }>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getUserProfileAdmin(_user: Principal): Promise<UserProfile | null>;
+    hostAddPlayer(sessionId: SessionId, playerId: Principal | null, guestName: string | null): Promise<AddPlayerResult>;
     isCallerAdmin(): Promise<boolean>;
     joinSession(gameCode: GameCode, guestName: string): Promise<{
         __kind__: "ok";
@@ -172,6 +191,6 @@ export interface backendInterface {
         err: string;
     }>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
-    searchPlayersByName(searchTerm: string): Promise<Array<PlayerSearchResult>>;
+    searchPlayers(searchTerm: string): Promise<Array<PlayerSearchResult>>;
     sendMessage(recipient: Principal, text: string): Promise<void>;
 }

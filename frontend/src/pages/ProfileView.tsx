@@ -9,14 +9,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { User, Phone, Briefcase, FileText, Edit2, Save, X, History, ArrowLeft } from 'lucide-react';
-import { getAuthChoice } from './Login';
+import { User, Phone, Briefcase, FileText, Edit2, Save, X, ArrowLeft } from 'lucide-react';
 
 export default function ProfileView() {
   const navigate = useNavigate();
   const { identity } = useInternetIdentity();
-  const authChoice = getAuthChoice();
-  const isGuest = authChoice === 'guest' || !identity;
+  // Determine guest status from identity alone (Login no longer exports getAuthChoice)
+  const isGuest = !identity;
 
   const { data: backendProfile, isLoading: profileLoading } = useGetCallerUserProfile();
   const saveProfile = useSaveCallerUserProfile();
@@ -65,13 +64,11 @@ export default function ProfileView() {
         });
       }
 
-      // Always save to localStorage
       savePlayerProfile({
         name: name.trim(),
         mobileNumber: mobile.trim(),
         bio: bio.trim() || undefined,
         workField: workField.trim() || undefined,
-        principalId: identity?.getPrincipal().toString(),
       });
 
       setIsEditing(false);
@@ -82,7 +79,12 @@ export default function ProfileView() {
   };
 
   const displayName = name || 'Player';
-  const initials = displayName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+  const initials = displayName
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   if (profileLoading) {
     return (
@@ -111,7 +113,9 @@ export default function ProfileView() {
         <div className="text-center">
           <h1 className="text-xl font-bold text-foreground font-display">{displayName}</h1>
           {isGuest && (
-            <Badge variant="secondary" className="mt-1 text-xs">Guest</Badge>
+            <Badge variant="secondary" className="mt-1 text-xs">
+              Guest
+            </Badge>
           )}
         </div>
       </div>
@@ -156,14 +160,14 @@ export default function ProfileView() {
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="mobile" className="flex items-center gap-1.5 text-sm">
                   <Phone size={14} />
-                  Mobile Number
+                  Username / Mobile
                 </Label>
                 <Input
                   id="mobile"
-                  type="tel"
+                  type="text"
                   value={mobile}
                   onChange={(e) => setMobile(e.target.value)}
-                  placeholder="+1 234 567 8900"
+                  placeholder="Username or mobile number"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -187,11 +191,12 @@ export default function ProfileView() {
                   id="bio"
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  placeholder="A short bio..."
+                  placeholder="Tell other players about yourself"
+                  className="resize-none"
                   rows={3}
                 />
               </div>
-              {error && <p className="text-destructive text-sm">{error}</p>}
+              {error && <p className="text-sm text-destructive">{error}</p>}
             </>
           ) : (
             <>
@@ -205,7 +210,7 @@ export default function ProfileView() {
               <div className="flex items-start gap-3">
                 <Phone size={16} className="text-muted-foreground mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-xs text-muted-foreground">Mobile</p>
+                  <p className="text-xs text-muted-foreground">Username / Mobile</p>
                   <p className="text-sm font-medium">{mobile || '—'}</p>
                 </div>
               </div>
@@ -216,31 +221,17 @@ export default function ProfileView() {
                   <p className="text-sm font-medium">{workField || '—'}</p>
                 </div>
               </div>
-              {bio && (
-                <div className="flex items-start gap-3">
-                  <FileText size={16} className="text-muted-foreground mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Bio</p>
-                    <p className="text-sm">{bio}</p>
-                  </div>
+              <div className="flex items-start gap-3">
+                <FileText size={16} className="text-muted-foreground mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Bio</p>
+                  <p className="text-sm font-medium">{bio || '—'}</p>
                 </div>
-              )}
+              </div>
             </>
           )}
         </CardContent>
       </Card>
-
-      {/* Game History link */}
-      {!isGuest && (
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => navigate({ to: '/history' })}
-        >
-          <History size={16} className="mr-2" />
-          View Game History
-        </Button>
-      )}
     </div>
   );
 }

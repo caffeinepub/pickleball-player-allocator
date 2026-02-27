@@ -1,40 +1,54 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Add manual player addition option in host dashboard (all game types)",
+  "title": "Fix manual add players on Host Session Dashboard",
   "requirements": [
     {
-      "id": "REQ-3",
-      "summary": "Add React Query hooks for hostAddPlayer and searchPlayers backend functions",
+      "id": "REQ-1",
+      "summary": "Fix the manual add guest player feature so hosts can successfully add guest players (by name only) to an active session",
       "acceptanceCriteria": [
-        "A useHostAddPlayer mutation hook is added to useQueries.ts",
-        "A useSearchPlayers query hook is added to useQueries.ts",
-        "Both hooks follow the existing patterns (error handling, invalidation, toast feedback) in useQueries.ts"
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/hooks/useQueries.ts",
-          "operation": "modify",
-          "description": "Add useHostAddPlayer mutation hook that accepts sessionId and playerId/principal, invalidates session queries on success, and shows toast feedback. Add useSearchPlayers query hook that accepts a search term string and returns matching PlayerSearchResult records. Both hooks follow existing patterns in the file for error handling and cache invalidation."
-        }
-      ]
-    },
-    {
-      "id": "REQ-4",
-      "summary": "Add 'Add Player Manually' section in HostSessionDashboard for all game types",
-      "acceptanceCriteria": [
-        "A 'Add Player Manually' section is visible in the host dashboard for all game types",
-        "Host can type a player name into a search input and see matching registered players",
-        "Each search result shows the player's name and rating, with an 'Add' button",
-        "Clicking 'Add' calls the hostAddPlayer mutation and shows a success toast or inline error",
-        "Already-added players do not appear in search results",
-        "The UI integrates consistently with the existing dashboard styling and tab structure"
+        "Host can enter a guest player name in the manual add field on the Host Session Dashboard and submit it without errors.",
+        "The added guest player appears in the session player list immediately after being added.",
+        "Guest players added manually display with Ghost icon and amber styling consistent with the rest of the app.",
+        "No error toast or console error appears when adding a guest player."
       ],
       "file_operations": [
         {
           "path": "frontend/src/pages/HostSessionDashboard.tsx",
           "operation": "modify",
-          "description": "Add a new 'Add Player Manually' section within the existing tabbed interface. Include a text input for player name search using the useSearchPlayers hook with debouncing. Display matching results in a list showing player name and mobile number, with an 'Add' button per result. Use the useHostAddPlayer mutation when 'Add' is clicked, showing success toast on success and inline error feedback on failure. Filter out players already in the session from search results. Style consistently with existing tabs and use shadcn/ui components (Input, Button, Card) to match the dashboard design. Ensure this section is visible for all session types (random, round-robin, ladder, king-queen)."
+          "description": "Fix the manual add guest player form by ensuring the guestNameInput state is properly captured from the input field, correctly passed to the hostAddPlayer mutation with playerId=null and guestName=guestNameInput, and the form is reset after successful submission. Add proper error handling that displays error toasts for InvalidInput, InvalidGuestName, PlayerAlreadyExists, and UnknownError variants from AddPlayerResult. Ensure the UI updates immediately after a successful add by invalidating the session query cache."
+        },
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Update the useHostAddPlayer mutation to properly handle all AddPlayerResult variants (ok, guestAdded, notHost, invalidInput, unknownError, invalidGuestName, playerAlreadyExists, sessionNotFound). Ensure the mutation invalidates the session query cache on success so the UI reflects the newly added guest player immediately. Return structured error information that can be consumed by the dashboard UI for user-friendly error messages."
+        },
+        {
+          "path": "frontend/src/lib/errorHandling.ts",
+          "operation": "modify",
+          "description": "Add helper functions to format AddPlayerResult error variants into user-friendly error messages. Include specific messages for InvalidGuestName ('Guest name must be 1-50 characters'), PlayerAlreadyExists ('This player is already in the session'), InvalidInput ('Invalid input provided'), and UnknownError ('Failed to add player'). Export these helpers for use in the HostSessionDashboard component."
+        }
+      ]
+    },
+    {
+      "id": "REQ-2",
+      "summary": "Fix the manual add registered player feature so hosts can search and add authenticated players to an active session",
+      "acceptanceCriteria": [
+        "Host can search for a registered player by name or principal on the Host Session Dashboard and add them to the session.",
+        "The added registered player appears in the session player list immediately after being added.",
+        "No error toast or console error appears when adding a registered player.",
+        "The backend correctly associates the registered player's principal with the session."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/pages/HostSessionDashboard.tsx",
+          "operation": "modify",
+          "description": "Fix the manual add registered player flow by ensuring the player search results are properly displayed and selectable. When a host clicks on a search result, call hostAddPlayer with the selected player's principal (playerId=principal, guestName=null). Clear the search input and results after successful addition. Add proper error handling that displays error toasts for all AddPlayerResult error variants. Ensure the UI updates immediately by invalidating the session query cache after a successful add."
+        },
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Ensure the useHostAddPlayer mutation properly handles adding registered players by passing the playerId principal and null for guestName. Verify the mutation invalidates both the session query and any cached player profile queries so the UI reflects the newly added registered player with their full profile information immediately."
         }
       ]
     }

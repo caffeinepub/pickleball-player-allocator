@@ -8,18 +8,38 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
-export const GuestId = IDL.Nat;
-export const GuestPlayer = IDL.Record({
-  'isGuest' : IDL.Bool,
-  'name' : IDL.Text,
-  'guestId' : GuestId,
+export const UserRole = IDL.Variant({
+  'admin' : IDL.Null,
+  'user' : IDL.Null,
+  'guest' : IDL.Null,
 });
-export const SessionId = IDL.Text;
+export const PublicProfile = IDL.Record({
+  'id' : IDL.Principal,
+  'bio' : IDL.Opt(IDL.Text),
+  'name' : IDL.Text,
+  'workField' : IDL.Opt(IDL.Text),
+  'profilePicture' : IDL.Opt(IDL.Text),
+  'winRate' : IDL.Opt(IDL.Float64),
+  'winLossRecord' : IDL.Opt(IDL.Tuple(IDL.Nat, IDL.Nat)),
+});
+export const GameCode = IDL.Text;
+export const SessionType = IDL.Variant({
+  'randomAllotment' : IDL.Null,
+  'kingQueenOfTheCourt' : IDL.Null,
+  'roundRobin' : IDL.Null,
+  'ladderLeague' : IDL.Null,
+});
 export const Court = IDL.Nat;
 export const PlayerId = IDL.Principal;
 export const CourtAssignment = IDL.Record({
   'court' : Court,
   'players' : IDL.Vec(PlayerId),
+});
+export const GuestId = IDL.Nat;
+export const GuestPlayer = IDL.Record({
+  'isGuest' : IDL.Bool,
+  'name' : IDL.Text,
+  'guestId' : GuestId,
 });
 export const Time = IDL.Int;
 export const GameOutcome = IDL.Variant({
@@ -41,13 +61,7 @@ export const AllGamesRoundAssignments = IDL.Record({
   'round' : IDL.Nat,
   'roundAssignments' : IDL.Vec(RoundAssignments),
 });
-export const GameCode = IDL.Text;
-export const SessionType = IDL.Variant({
-  'randomAllotment' : IDL.Null,
-  'kingQueenOfTheCourt' : IDL.Null,
-  'roundRobin' : IDL.Null,
-  'ladderLeague' : IDL.Null,
-});
+export const SessionId = IDL.Text;
 export const SessionConfig = IDL.Record({
   'isRanked' : IDL.Bool,
   'duration' : IDL.Opt(IDL.Nat),
@@ -74,24 +88,16 @@ export const SessionState = IDL.Record({
   'lastGuestId' : GuestId,
   'config' : SessionConfig,
 });
-export const UserRole = IDL.Variant({
-  'admin' : IDL.Null,
-  'user' : IDL.Null,
-  'guest' : IDL.Null,
-});
-export const PublicProfile = IDL.Record({
-  'id' : IDL.Principal,
-  'bio' : IDL.Opt(IDL.Text),
-  'name' : IDL.Text,
-  'workField' : IDL.Opt(IDL.Text),
-  'profilePicture' : IDL.Opt(IDL.Text),
-  'winRate' : IDL.Opt(IDL.Float64),
-  'winLossRecord' : IDL.Opt(IDL.Tuple(IDL.Nat, IDL.Nat)),
-});
 export const SessionCreationResult = IDL.Record({
   'state' : SessionState,
   'sessionId' : SessionId,
   'config' : SessionConfig,
+});
+export const EndSessionResult = IDL.Variant({
+  'ok' : IDL.Null,
+  'notHost' : IDL.Null,
+  'alreadyEnded' : IDL.Null,
+  'sessionNotFound' : IDL.Null,
 });
 export const UserProfile = IDL.Record({
   'bio' : IDL.Opt(IDL.Text),
@@ -123,6 +129,16 @@ export const SessionNotFound = IDL.Record({
   'message' : IDL.Text,
   'reason' : IDL.Opt(IDL.Text),
 });
+export const AddPlayerResult = IDL.Variant({
+  'ok' : IDL.Null,
+  'guestAdded' : GuestPlayer,
+  'notHost' : IDL.Null,
+  'invalidInput' : IDL.Null,
+  'unknownError' : IDL.Null,
+  'invalidGuestName' : IDL.Null,
+  'playerAlreadyExists' : IDL.Null,
+  'sessionNotFound' : IDL.Null,
+});
 export const PlayerSearchResult = IDL.Record({
   'id' : IDL.Principal,
   'name' : IDL.Text,
@@ -131,16 +147,6 @@ export const PlayerSearchResult = IDL.Record({
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
-  'addGuestPlayer' : IDL.Func(
-      [IDL.Text, IDL.Text],
-      [IDL.Variant({ 'ok' : GuestPlayer, 'err' : IDL.Text })],
-      [],
-    ),
-  'addPlayerToSession' : IDL.Func(
-      [SessionId, IDL.Principal],
-      [IDL.Variant({ 'ok' : SessionState, 'err' : IDL.Text })],
-      [],
-    ),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'createGuestProfile' : IDL.Func(
       [
@@ -167,6 +173,7 @@ export const idlService = IDL.Service({
       [SessionCreationResult],
       [],
     ),
+  'endSession' : IDL.Func([SessionId], [EndSessionResult], []),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getConversation' : IDL.Func([IDL.Principal], [IDL.Vec(Message)], ['query']),
@@ -197,6 +204,11 @@ export const idlService = IDL.Service({
       [IDL.Opt(UserProfile)],
       ['query'],
     ),
+  'hostAddPlayer' : IDL.Func(
+      [SessionId, IDL.Opt(IDL.Principal), IDL.Opt(IDL.Text)],
+      [AddPlayerResult],
+      [],
+    ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'joinSession' : IDL.Func(
       [GameCode, IDL.Text],
@@ -204,7 +216,7 @@ export const idlService = IDL.Service({
       [],
     ),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-  'searchPlayersByName' : IDL.Func(
+  'searchPlayers' : IDL.Func(
       [IDL.Text],
       [IDL.Vec(PlayerSearchResult)],
       ['query'],
@@ -215,18 +227,38 @@ export const idlService = IDL.Service({
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
-  const GuestId = IDL.Nat;
-  const GuestPlayer = IDL.Record({
-    'isGuest' : IDL.Bool,
-    'name' : IDL.Text,
-    'guestId' : GuestId,
+  const UserRole = IDL.Variant({
+    'admin' : IDL.Null,
+    'user' : IDL.Null,
+    'guest' : IDL.Null,
   });
-  const SessionId = IDL.Text;
+  const PublicProfile = IDL.Record({
+    'id' : IDL.Principal,
+    'bio' : IDL.Opt(IDL.Text),
+    'name' : IDL.Text,
+    'workField' : IDL.Opt(IDL.Text),
+    'profilePicture' : IDL.Opt(IDL.Text),
+    'winRate' : IDL.Opt(IDL.Float64),
+    'winLossRecord' : IDL.Opt(IDL.Tuple(IDL.Nat, IDL.Nat)),
+  });
+  const GameCode = IDL.Text;
+  const SessionType = IDL.Variant({
+    'randomAllotment' : IDL.Null,
+    'kingQueenOfTheCourt' : IDL.Null,
+    'roundRobin' : IDL.Null,
+    'ladderLeague' : IDL.Null,
+  });
   const Court = IDL.Nat;
   const PlayerId = IDL.Principal;
   const CourtAssignment = IDL.Record({
     'court' : Court,
     'players' : IDL.Vec(PlayerId),
+  });
+  const GuestId = IDL.Nat;
+  const GuestPlayer = IDL.Record({
+    'isGuest' : IDL.Bool,
+    'name' : IDL.Text,
+    'guestId' : GuestId,
   });
   const Time = IDL.Int;
   const GameOutcome = IDL.Variant({
@@ -248,13 +280,7 @@ export const idlFactory = ({ IDL }) => {
     'round' : IDL.Nat,
     'roundAssignments' : IDL.Vec(RoundAssignments),
   });
-  const GameCode = IDL.Text;
-  const SessionType = IDL.Variant({
-    'randomAllotment' : IDL.Null,
-    'kingQueenOfTheCourt' : IDL.Null,
-    'roundRobin' : IDL.Null,
-    'ladderLeague' : IDL.Null,
-  });
+  const SessionId = IDL.Text;
   const SessionConfig = IDL.Record({
     'isRanked' : IDL.Bool,
     'duration' : IDL.Opt(IDL.Nat),
@@ -281,24 +307,16 @@ export const idlFactory = ({ IDL }) => {
     'lastGuestId' : GuestId,
     'config' : SessionConfig,
   });
-  const UserRole = IDL.Variant({
-    'admin' : IDL.Null,
-    'user' : IDL.Null,
-    'guest' : IDL.Null,
-  });
-  const PublicProfile = IDL.Record({
-    'id' : IDL.Principal,
-    'bio' : IDL.Opt(IDL.Text),
-    'name' : IDL.Text,
-    'workField' : IDL.Opt(IDL.Text),
-    'profilePicture' : IDL.Opt(IDL.Text),
-    'winRate' : IDL.Opt(IDL.Float64),
-    'winLossRecord' : IDL.Opt(IDL.Tuple(IDL.Nat, IDL.Nat)),
-  });
   const SessionCreationResult = IDL.Record({
     'state' : SessionState,
     'sessionId' : SessionId,
     'config' : SessionConfig,
+  });
+  const EndSessionResult = IDL.Variant({
+    'ok' : IDL.Null,
+    'notHost' : IDL.Null,
+    'alreadyEnded' : IDL.Null,
+    'sessionNotFound' : IDL.Null,
   });
   const UserProfile = IDL.Record({
     'bio' : IDL.Opt(IDL.Text),
@@ -330,6 +348,16 @@ export const idlFactory = ({ IDL }) => {
     'message' : IDL.Text,
     'reason' : IDL.Opt(IDL.Text),
   });
+  const AddPlayerResult = IDL.Variant({
+    'ok' : IDL.Null,
+    'guestAdded' : GuestPlayer,
+    'notHost' : IDL.Null,
+    'invalidInput' : IDL.Null,
+    'unknownError' : IDL.Null,
+    'invalidGuestName' : IDL.Null,
+    'playerAlreadyExists' : IDL.Null,
+    'sessionNotFound' : IDL.Null,
+  });
   const PlayerSearchResult = IDL.Record({
     'id' : IDL.Principal,
     'name' : IDL.Text,
@@ -338,16 +366,6 @@ export const idlFactory = ({ IDL }) => {
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
-    'addGuestPlayer' : IDL.Func(
-        [IDL.Text, IDL.Text],
-        [IDL.Variant({ 'ok' : GuestPlayer, 'err' : IDL.Text })],
-        [],
-      ),
-    'addPlayerToSession' : IDL.Func(
-        [SessionId, IDL.Principal],
-        [IDL.Variant({ 'ok' : SessionState, 'err' : IDL.Text })],
-        [],
-      ),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'createGuestProfile' : IDL.Func(
         [
@@ -374,6 +392,7 @@ export const idlFactory = ({ IDL }) => {
         [SessionCreationResult],
         [],
       ),
+    'endSession' : IDL.Func([SessionId], [EndSessionResult], []),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getConversation' : IDL.Func(
@@ -408,6 +427,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
+    'hostAddPlayer' : IDL.Func(
+        [SessionId, IDL.Opt(IDL.Principal), IDL.Opt(IDL.Text)],
+        [AddPlayerResult],
+        [],
+      ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'joinSession' : IDL.Func(
         [GameCode, IDL.Text],
@@ -415,7 +439,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-    'searchPlayersByName' : IDL.Func(
+    'searchPlayers' : IDL.Func(
         [IDL.Text],
         [IDL.Vec(PlayerSearchResult)],
         ['query'],

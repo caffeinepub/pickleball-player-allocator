@@ -1,53 +1,32 @@
 {
   "schemaVersion": "1.0.0",
   "projectStateVersion": 3,
-  "summary": "Multiplayer game platform with host dashboard functionality. Hosts can manage games and players across all game types.",
+  "summary": "New project",
   "architectural_notes": [],
-  "known_issues": [],
-  "isFixRequest": false,
+  "known_issues": [
+    "Manual add players option not working on the Host dashboard for both guests and registered players"
+  ],
+  "isFixRequest": true,
   "existing_features": [
     {
-      "id": "feature-add-react-query-hooks-in-usequeries-ts-for-the-new-hostaddplayer-and-searchplayers-backend-functions-following-the-existing-hook-patterns-in-that-file",
-      "title": "Add React Query hooks in useQueries.ts for the new hostAddPlayer and searchPlayers backend functions, following the existing hook patterns in that file.",
-      "reqIds": [
-        "REQ-3"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-in-hostsessiondashboard-tsx-add-a-add-player-manually-ui-section-within-the-existing-tabbed-interface-that-lets-the-host-search-for-registered-players-by-name-and-add-them-directly-to-the-session-this-section-must-be-visible-and-functional-for-all-game-types-random-round-robin-ladder-king-queen-display-a-search-input-a-list-of-matching-results-with-an-add-button-per-result-and-show-inline-success-error-feedback-when-a-player-is-added",
-      "title": "In HostSessionDashboard.tsx, add a 'Add Player Manually' UI section (within the existing tabbed interface) that lets the host search for registered players by name and add them directly to the session. This section must be visible and functional for all game types (random, round-robin, ladder, king-queen). Display a search input, a list of matching results with an 'Add' button per result, and show inline success/error feedback when a player is added.",
-      "reqIds": [
-        "REQ-4"
-      ],
-      "version": 1
-    }
-  ],
-  "new_feature_requests": [
-    {
-      "id": "AR-1",
-      "summary": "Add option for host to manually add players to a game from the host dashboard (applies to all game types)",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-2",
-      "summary": "Add a backend function that allows the host of a session to manually add a registered player (by their principal ID or player name search) to the session's player list, bypassing the normal join-via-code flow. This function must validate that the caller is the session host and that the player is not already in the session.",
+      "id": "feature-fix-the-manual-add-player-feature-on-the-host-session-dashboard-so-that-hosts-can-successfully-add-guest-players-by-name-only-without-an-account-to-an-active-session",
+      "title": "Fix the manual add player feature on the Host Session Dashboard so that hosts can successfully add guest players (by name only, without an account) to an active session.",
       "reqIds": [
         "REQ-1"
       ],
-      "status": "pending"
+      "version": 1
     },
     {
-      "id": "AR-3",
-      "summary": "Add a backend function that allows the host to search for registered players by name or partial name, returning a list of matching player profiles. This supports the host dashboard UI for looking up players to add manually.",
+      "id": "feature-fix-the-manual-add-player-feature-on-the-host-session-dashboard-so-that-hosts-can-successfully-add-registered-authenticated-players-by-searching-and-selecting-their-profile",
+      "title": "Fix the manual add player feature on the Host Session Dashboard so that hosts can successfully add registered (authenticated) players by searching and selecting their profile.",
       "reqIds": [
         "REQ-2"
       ],
-      "status": "pending"
+      "version": 1
     }
   ],
-  "projectName": "The Ball Club",
+  "new_feature_requests": [],
+  "projectName": "Rally",
   "clarification_mode": "instant",
   "clarification_rounds": 0
 }

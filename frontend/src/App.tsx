@@ -1,10 +1,11 @@
 import React from 'react';
 import {
-  RouterProvider,
   createRouter,
   createRoute,
   createRootRoute,
+  RouterProvider,
   Outlet,
+  redirect,
 } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
@@ -12,12 +13,12 @@ import { Toaster } from '@/components/ui/sonner';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Login from './pages/Login';
-import ProfileSetup from './pages/ProfileSetup';
-import ProfileView from './pages/ProfileView';
 import CreateSession from './pages/CreateSession';
 import JoinSession from './pages/JoinSession';
 import HostSessionDashboard from './pages/HostSessionDashboard';
 import PlayerSessionView from './pages/PlayerSessionView';
+import ProfileSetup from './pages/ProfileSetup';
+import ProfileView from './pages/ProfileView';
 import PublicProfile from './pages/PublicProfile';
 import GameHistory from './pages/GameHistory';
 import MessagesInbox from './pages/MessagesInbox';
@@ -26,12 +27,13 @@ import ConversationThread from './pages/ConversationThread';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      staleTime: 1000 * 30,
       retry: 1,
-      staleTime: 30000,
     },
   },
 });
 
+// Root route with layout
 const rootRoute = createRootRoute({
   component: () => (
     <Layout>
@@ -40,7 +42,8 @@ const rootRoute = createRootRoute({
   ),
 });
 
-const indexRoute = createRoute({
+// Routes
+const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: Home,
@@ -52,31 +55,19 @@ const loginRoute = createRoute({
   component: Login,
 });
 
-const profileSetupRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/profile-setup',
-  component: ProfileSetup,
-});
-
-const profileViewRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/profile',
-  component: ProfileView,
-});
-
 const createSessionRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/create',
+  path: '/create-session',
   component: CreateSession,
 });
 
-const joinSessionRoute = createRoute({
+const joinRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/join',
   component: JoinSession,
 });
 
-const hostDashboardRoute = createRoute({
+const hostSessionRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/host/$sessionId',
   component: HostSessionDashboard,
@@ -88,43 +79,55 @@ const playerSessionRoute = createRoute({
   component: PlayerSessionView,
 });
 
+const profileSetupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profile-setup',
+  component: ProfileSetup,
+});
+
+const profileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profile',
+  component: ProfileView,
+});
+
 const publicProfileRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/player/$principal',
+  path: '/player/$principalId',
   component: PublicProfile,
 });
 
-const gameHistoryRoute = createRoute({
+const historyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/history',
   component: GameHistory,
 });
 
-const messagesInboxRoute = createRoute({
+const messagesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/messages',
   component: MessagesInbox,
 });
 
-const conversationThreadRoute = createRoute({
+const conversationRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/messages/$principal',
+  path: '/messages/$principalId',
   component: ConversationThread,
 });
 
 const routeTree = rootRoute.addChildren([
-  indexRoute,
+  homeRoute,
   loginRoute,
-  profileSetupRoute,
-  profileViewRoute,
   createSessionRoute,
-  joinSessionRoute,
-  hostDashboardRoute,
+  joinRoute,
+  hostSessionRoute,
   playerSessionRoute,
+  profileSetupRoute,
+  profileRoute,
   publicProfileRoute,
-  gameHistoryRoute,
-  messagesInboxRoute,
-  conversationThreadRoute,
+  historyRoute,
+  messagesRoute,
+  conversationRoute,
 ]);
 
 const router = createRouter({ routeTree });
@@ -137,11 +140,11 @@ declare module '@tanstack/react-router' {
 
 export default function App() {
   return (
-    <ThemeProvider attribute="class" defaultTheme="light">
-      <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <RouterProvider router={router} />
         <Toaster />
-      </QueryClientProvider>
-    </ThemeProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }

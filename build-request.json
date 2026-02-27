@@ -1,100 +1,57 @@
 {
   "kind": "build_request",
-  "title": "Add manual player addition option in host dashboard (all game types)",
-  "projectName": "The Ball Club",
-  "priority": "normal",
+  "title": "Fix manual add players on Host Session Dashboard",
+  "projectName": "Rally",
+  "priority": "high",
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "Add a backend function that allows the host of a session to manually add a registered player (by their principal ID or player name search) to the session's player list, bypassing the normal join-via-code flow. This function must validate that the caller is the session host and that the player is not already in the session.",
-      "target": "backend",
+      "text": "Fix the manual add player feature on the Host Session Dashboard so that hosts can successfully add guest players (by name only, without an account) to an active session.",
+      "target": "both",
       "source": {
         "messageIds": [
-          "msg-4"
+          "msg-1"
         ],
         "quotes": [
-          "Add an option for host to add players manually for a game in host dashboard",
-          "this is common for all game types"
+          "Still not working on the Host dashboard"
         ]
       },
       "acceptanceCriteria": [
-        "A new backend function (e.g., hostAddPlayer) is available in the main actor",
-        "Only the session host can call this function; unauthorized callers receive an error",
-        "The function rejects attempts to add a player already in the session (duplicate guard)",
-        "The function works regardless of game type (random/round-robin/ladder/king-queen)",
-        "Successfully added player appears in the session's player list immediately"
+        "Host can enter a guest player name in the manual add field on the Host Session Dashboard and submit it without errors.",
+        "The added guest player appears in the session player list immediately after being added.",
+        "Guest players added manually display with Ghost icon and amber styling consistent with the rest of the app.",
+        "No error toast or console error appears when adding a guest player."
       ]
     },
     {
       "id": "REQ-2",
-      "text": "Add a backend function that allows the host to search for registered players by name or partial name, returning a list of matching player profiles. This supports the host dashboard UI for looking up players to add manually.",
-      "target": "backend",
+      "text": "Fix the manual add player feature on the Host Session Dashboard so that hosts can successfully add registered (authenticated) players by searching and selecting their profile.",
+      "target": "both",
       "source": {
         "messageIds": [
-          "msg-4"
+          "msg-1"
         ],
         "quotes": [
-          "Add an option for host to add players manually for a game in host dashboard"
+          "Still not working on the Host dashboard"
         ]
       },
       "acceptanceCriteria": [
-        "A search/lookup function exists in the main actor that accepts a name query string",
-        "Returns matching PlayerProfile records (name, principal, rating) for registered users",
-        "Search is case-insensitive and supports partial matches",
-        "Results exclude players already in the current session"
-      ]
-    },
-    {
-      "id": "REQ-3",
-      "text": "Add React Query hooks in useQueries.ts for the new hostAddPlayer and searchPlayers backend functions, following the existing hook patterns in that file.",
-      "target": "frontend",
-      "source": {
-        "messageIds": [
-          "msg-4"
-        ],
-        "quotes": [
-          "Add an option for host to add players manually for a game in host dashboard"
-        ]
-      },
-      "acceptanceCriteria": [
-        "A useHostAddPlayer mutation hook is added to useQueries.ts",
-        "A useSearchPlayers query hook is added to useQueries.ts",
-        "Both hooks follow the existing patterns (error handling, invalidation, toast feedback) in useQueries.ts"
-      ]
-    },
-    {
-      "id": "REQ-4",
-      "text": "In HostSessionDashboard.tsx, add a 'Add Player Manually' UI section (within the existing tabbed interface) that lets the host search for registered players by name and add them directly to the session. This section must be visible and functional for all game types (random, round-robin, ladder, king-queen). Display a search input, a list of matching results with an 'Add' button per result, and show inline success/error feedback when a player is added.",
-      "target": "frontend",
-      "source": {
-        "messageIds": [
-          "msg-4"
-        ],
-        "quotes": [
-          "Add an option for host to add players manually for a game in host dashboard",
-          "this is common for all game types"
-        ]
-      },
-      "acceptanceCriteria": [
-        "A 'Add Player Manually' section is visible in the host dashboard for all game types",
-        "Host can type a player name into a search input and see matching registered players",
-        "Each search result shows the player's name and rating, with an 'Add' button",
-        "Clicking 'Add' calls the hostAddPlayer mutation and shows a success toast or inline error",
-        "Already-added players do not appear in search results",
-        "The UI integrates consistently with the existing dashboard styling and tab structure"
+        "Host can search for a registered player by name or principal on the Host Session Dashboard and add them to the session.",
+        "The added registered player appears in the session player list immediately after being added.",
+        "No error toast or console error appears when adding a registered player.",
+        "The backend correctly associates the registered player's principal with the session."
       ]
     }
   ],
   "constraints": [
-    "All Motoko logic must remain in backend/main.mo (single-actor architecture)",
-    "Do not modify files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui",
-    "The manual add feature must apply to all game types without conditional exclusions"
+    "Do not change the overall Host Session Dashboard layout or other existing functionality.",
+    "Do not modify files under frontend/src/hooks/ (immutable paths).",
+    "Do not modify files under frontend/src/components/ui/ (immutable paths)."
   ],
   "nonGoals": [
-    "Adding players via QR code or invite link (only manual name search in dashboard)",
-    "Removing or kicking players from a session (separate feature)",
-    "Modifying the existing guest player addition flow",
-    "Changes to the player-facing JoinSession page"
+    "Adding new player management features beyond fixing the existing manual add flow.",
+    "Changes to the player join flow (JoinSession page).",
+    "Changes to the scheduling or round management logic."
   ],
   "imageRequirements": {
     "required": [],

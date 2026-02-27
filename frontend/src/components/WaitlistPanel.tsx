@@ -1,82 +1,68 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Ghost, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Ghost } from 'lucide-react';
-
-interface WaitlistPlayer {
-  id: string;
-  name: string;
-  isGuest?: boolean;
-}
 
 interface WaitlistPanelProps {
-  waitlist: WaitlistPlayer[];
-  currentPlayerId?: string;
+  waitlist: string[];
+  playerNames?: Record<string, string>;
+  playerUsernames?: Record<string, string>;
+  guestPlayerIds?: string[];
 }
 
-export default function WaitlistPanel({ waitlist, currentPlayerId }: WaitlistPanelProps) {
-  if (waitlist.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-6 text-center">
-          <Clock className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">No players on the waitlist</p>
-        </CardContent>
-      </Card>
-    );
-  }
+export default function WaitlistPanel({
+  waitlist,
+  playerNames = {},
+  playerUsernames = {},
+  guestPlayerIds = [],
+}: WaitlistPanelProps) {
+  if (waitlist.length === 0) return null;
+
+  const isGuest = (id: string) => guestPlayerIds.includes(id) || id.startsWith('guest-');
+  const getDisplayName = (id: string) => playerNames[id] || id.slice(0, 8) + '...';
+  const getUsername = (id: string) => playerUsernames[id];
 
   return (
-    <Card>
-      <CardHeader className="pb-2 pt-3 px-4">
-        <CardTitle className="text-sm font-bold flex items-center gap-2">
-          <Clock className="w-4 h-4 text-primary" />
-          Waitlist ({waitlist.length})
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="px-4 pb-3 space-y-1.5">
-        {waitlist.map((player, index) => {
-          const isCurrentPlayer = player.id === currentPlayerId;
-          const isGuest = player.isGuest || player.id.startsWith('guest-');
+    <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <Clock className="h-4 w-4 text-muted-foreground" />
+        <h3 className="font-semibold text-sm text-foreground">Waiting Next Round</h3>
+        <Badge variant="secondary" className="text-xs ml-auto">
+          {waitlist.length}
+        </Badge>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {waitlist.map((id) => {
+          const guest = isGuest(id);
+          const username = getUsername(id);
           return (
             <div
-              key={player.id}
-              className={`flex items-center gap-3 py-2 px-3 rounded-lg transition-colors ${
-                isCurrentPlayer
-                  ? 'bg-primary/10 border border-primary/30'
-                  : 'bg-muted/40 hover:bg-muted/60'
+              key={id}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm ${
+                guest
+                  ? 'bg-amber-500/10 border border-amber-500/30'
+                  : 'bg-muted/60 border border-border/60'
               }`}
             >
-              <span
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                  isCurrentPlayer ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground/20 text-muted-foreground'
-                }`}
-              >
-                {index + 1}
-              </span>
-              <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                {isGuest && <Ghost className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />}
-                <span className={`text-sm font-medium truncate ${isCurrentPlayer ? 'text-primary' : ''}`}>
-                  {player.name}
+              {guest && <Ghost className="h-3 w-3 text-amber-500 shrink-0" />}
+              <div className="min-w-0">
+                <span
+                  className={`font-medium block ${
+                    guest ? 'text-amber-700 dark:text-amber-400' : 'text-foreground'
+                  }`}
+                >
+                  {getDisplayName(id)}
                 </span>
-                {isCurrentPlayer && (
-                  <span className="text-xs text-muted-foreground flex-shrink-0">(you)</span>
+                {username && !guest && (
+                  <span className="text-xs text-muted-foreground block">@{username}</span>
                 )}
-              </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {isGuest && (
-                  <Badge
-                    variant="outline"
-                    className="text-xs border-amber-400 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 py-0 px-1.5"
-                  >
-                    Guest
-                  </Badge>
+                {guest && (
+                  <span className="text-xs text-amber-600 dark:text-amber-500">Guest</span>
                 )}
               </div>
             </div>
           );
         })}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
