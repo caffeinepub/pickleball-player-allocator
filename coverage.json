@@ -1,59 +1,65 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-26T04:56:45.442Z",
+  "generatedAt": "2026-02-27T11:48:44.812Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 1,
-    "implemented": 0,
+    "total": 4,
+    "implemented": 2,
     "items": [
       {
         "id": "REQ-1",
-        "summary": "Rebuild and redeploy the full application (backend Motoko actor and React frontend) resolving any compilation or deployment errors that caused the previous build to fail.",
-        "status": "missing",
-        "plannedFiles": [
-          "frontend/src/App.tsx",
-          "frontend/src/hooks/useQueries.ts",
-          "frontend/src/hooks/useActor.ts",
-          "frontend/src/hooks/useInternetIdentity.ts",
-          "frontend/src/pages/Login.tsx",
-          "frontend/src/pages/ProfileSetup.tsx",
-          "frontend/src/pages/ProfileView.tsx",
-          "frontend/src/pages/Home.tsx",
-          "frontend/src/pages/CreateSession.tsx",
-          "frontend/src/pages/JoinSession.tsx",
-          "frontend/src/pages/HostSessionDashboard.tsx",
-          "frontend/src/pages/PlayerSessionView.tsx",
-          "frontend/src/components/SessionConfigForm.tsx",
-          "frontend/src/components/CourtAssignmentCard.tsx",
-          "frontend/src/components/MatchResultSubmission.tsx",
-          "frontend/src/components/AllRoundsSchedule.tsx",
-          "frontend/src/components/Layout.tsx",
-          "frontend/src/lib/errorHandling.ts",
-          "frontend/src/lib/scheduler.ts",
-          "frontend/src/lib/storage.ts",
-          "frontend/src/main.tsx",
-          "frontend/src/backend.d.ts",
-          "frontend/index.css",
-          "frontend/tailwind.config.js",
-          "frontend/package.json",
-          "frontend/vite.config.ts",
-          "frontend/tsconfig.json"
-        ],
+        "summary": "Add a backend function that allows the host of a session to manually add a registered player (by their principal ID or player name search) to the session's player list, bypassing the normal join-via-code flow. This function must validate that the caller is the session host and that the player is not already in the session.",
+        "status": "unknown",
+        "plannedFiles": [],
         "matchedFiles": []
+      },
+      {
+        "id": "REQ-2",
+        "summary": "Add a backend function that allows the host to search for registered players by name or partial name, returning a list of matching player profiles. This supports the host dashboard UI for looking up players to add manually.",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
+      },
+      {
+        "id": "REQ-3",
+        "summary": "Add React Query hooks in useQueries.ts for the new hostAddPlayer and searchPlayers backend functions, following the existing hook patterns in that file.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/hooks/useQueries.ts"
+        ],
+        "matchedFiles": [
+          "frontend/src/hooks/useQueries.ts"
+        ]
+      },
+      {
+        "id": "REQ-4",
+        "summary": "In HostSessionDashboard.tsx, add a 'Add Player Manually' UI section (within the existing tabbed interface) that lets the host search for registered players by name and add them directly to the session. This section must be visible and functional for all game types (random, round-robin, ladder, king-queen). Display a search input, a list of matching results with an 'Add' button per result, and show inline success/error feedback when a player is added.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/pages/HostSessionDashboard.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/pages/HostSessionDashboard.tsx"
+        ]
       }
     ]
   },
   "changedFiles": [
     "backend/main.mo",
     "build-request.json",
-    "build-template/README.md",
-    "caffeine.lock.json",
     "feature_evidence.json",
+    "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
+    "frontend/src/backend.d.ts",
+    "frontend/src/backend.ts",
+    "frontend/src/declarations/backend.did.d.ts",
+    "frontend/src/declarations/backend.did.js",
+    "frontend/src/hooks/useQueries.ts",
+    "frontend/src/pages/HostSessionDashboard.tsx",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

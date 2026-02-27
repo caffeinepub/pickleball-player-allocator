@@ -1,11 +1,11 @@
 import Array "mo:core/Array";
+import Iter "mo:core/Iter";
 import List "mo:core/List";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Float "mo:core/Float";
-import Iter "mo:core/Iter";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
 import AccessControl "authorization/access-control";
@@ -13,15 +13,11 @@ import MixinAuthorization "authorization/MixinAuthorization";
 
 actor {
   type PlayerId = Principal;
-  type SessionId = Text;
-  type Court = Nat;
-  type GameCode = Text;
+  type GuestId = Nat;
   type MatchId = Nat;
-  type MobileNumber = Text;
-
-  let accessControlState = AccessControl.initState();
-
-  include MixinAuthorization(accessControlState);
+  type SessionId = Text;
+  type GameCode = Text;
+  type Court = Nat;
 
   public type UserProfile = {
     name : Text;
@@ -46,6 +42,22 @@ actor {
     bio : ?Text;
     profilePicture : ?Text;
     workField : ?Text;
+  };
+
+  public type GuestPlayer = {
+    guestId : GuestId;
+    name : Text;
+    isGuest : Bool;
+  };
+
+  public type PublicProfile = {
+    id : Principal;
+    name : Text;
+    bio : ?Text;
+    profilePicture : ?Text;
+    workField : ?Text;
+    winLossRecord : ?(Nat, Nat);
+    winRate : ?Float;
   };
 
   public type GameOutcome = {
@@ -100,6 +112,8 @@ actor {
     allGamesAssignments : [AllGamesRoundAssignments];
     previousWaitlist : [PlayerId];
     isCompleted : Bool;
+    guestPlayers : [GuestPlayer];
+    lastGuestId : GuestId;
   };
 
   public type RatingUpdate = {
@@ -145,10 +159,58 @@ actor {
     state : SessionState;
   };
 
+  public type CompletedMatch = {
+    sessionId : SessionId;
+    opponentNames : [Text];
+    court : Court;
+    teamScores : (Nat, Nat);
+    outcome : GameOutcome;
+    date : Time.Time;
+  };
+
+  public type Message = {
+    sender : Principal;
+    recipient : Principal;
+    text : Text;
+    timestamp : Time.Time;
+  };
+
+  public type Conversation = {
+    participant : Principal;
+    messages : [Message];
+  };
+
+  public type MatchHistory = {
+    matches : [CompletedMatch];
+  };
+
+  public type MatchHistoryStorage = {
+    completedMatches : [CompletedMatch];
+  };
+
+  public type SessionNotFound = {
+    message : Text;
+    reason : ?Text;
+  };
+
+  // New type to include mobile number in search results
+  public type PlayerSearchResult = {
+    id : Principal;
+    name : Text;
+    mobileNumber : Text;
+  };
+
+  let accessControlState = AccessControl.initState();
+  include MixinAuthorization(accessControlState);
+
   let sessions = Map.empty<SessionId, SessionState>();
   let profiles = Map.empty<PlayerId, PlayerProfile>();
   let userProfiles = Map.empty<Principal, UserProfile>();
+  let directMessages = Map.empty<Principal, List.List<Message>>();
+  let matchHistories = Map.empty<Principal, MatchHistoryStorage>();
 
+  // Returns the calling user's own full profile (including mobile number).
+  // Requires #user role.
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can get profiles");
@@ -156,13 +218,25 @@ actor {
     userProfiles.get(caller);
   };
 
+  // Returns the full profile (including mobile number) for a given user.
+  // Only the owner (self) may call this.
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
-    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
+    if (caller != user) {
       Runtime.trap("Unauthorized: Can only view your own profile");
     };
     userProfiles.get(user);
   };
 
+  // Returns the full profile (including mobile number) for a given user.
+  // Admin-only: called by admins to fetch other users' profiles.
+  public query ({ caller }) func getUserProfileAdmin(_user : Principal) : async ?UserProfile {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Can only view your own profile");
+    };
+    userProfiles.get(_user);
+  };
+
+  // Saves the calling user's profile. Requires #user role.
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can save profiles");
@@ -189,35 +263,203 @@ actor {
     profiles.add(caller, newProfile);
   };
 
-  public shared ({ caller }) func createPlayerProfile(name : Text) : async PlayerId {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create player profiles");
-    };
-
-    if (profiles.containsKey(caller)) {
-      Runtime.trap("Profile already exists");
-    };
-
+  // Guest profile creation — callable by anyone (anonymous principals).
+  // No auth guard needed.
+  public shared ({ caller }) func createGuestProfile(
+    name : Text,
+    mobileNumber : Text,
+    bio : ?Text,
+    profilePicture : ?Text,
+    workField : ?Text,
+  ) : async PublicProfile {
     let initialRating : PlayerRating = {
       mu = 1500.0;
       sigma = 350.0;
       rating = 1500.0 - 2.0 * 350.0;
     };
 
-    let profile : PlayerProfile = {
+    let newProfile : PlayerProfile = {
       id = caller;
       name;
       rating = initialRating;
       winLossRecord = null;
-      mobileNumber = "none";
-      bio = null;
-      profilePicture = null;
-      workField = null;
+      mobileNumber;
+      bio;
+      profilePicture;
+      workField;
     };
-    profiles.add(caller, profile);
-    caller;
+
+    profiles.add(caller, newProfile);
+
+    // Also persist to userProfiles so the profile is available via getCallerUserProfile
+    // after the guest upgrades to a full user.
+    let up : UserProfile = {
+      name;
+      mobileNumber;
+      bio;
+      profilePicture;
+      workField;
+    };
+    userProfiles.add(caller, up);
+
+    {
+      id = caller;
+      name;
+      bio;
+      profilePicture;
+      workField;
+      winLossRecord = null;
+      winRate = null;
+    };
   };
 
+  // Returns the public profile of any player.
+  // Mobile number and numerical rating are intentionally excluded.
+  // Requires #user role — only logged-in players may view other players' public profiles.
+  public query ({ caller }) func getPublicProfile(requested : Principal) : async ?PublicProfile {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only logged-in users can view player profiles");
+    };
+    switch (profiles.get(requested)) {
+      case (null) { null };
+      case (?profile) {
+        let winLoss = profile.winLossRecord;
+        let winRate = switch (winLoss) {
+          case (null) { null };
+          case (?(wins, losses)) {
+            let total = wins + losses;
+            if (total == 0) { null } else {
+              ?(wins.toInt().toFloat() / total.toInt().toFloat() * 100.0);
+            };
+          };
+        };
+
+        ?{
+          id = profile.id;
+          name = profile.name;
+          bio = profile.bio;
+          profilePicture = profile.profilePicture;
+          workField = profile.workField;
+          winLossRecord = profile.winLossRecord;
+          winRate;
+        };
+      };
+    };
+  };
+
+  // Returns the match history for the calling user only.
+  // Requires #user role.
+  public query ({ caller }) func getMatchHistory() : async MatchHistory {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view match history");
+    };
+    switch (matchHistories.get(caller)) {
+      case (null) { { matches = [] } };
+      case (?history) { { matches = history.completedMatches } };
+    };
+  };
+
+  // Retrieve match history for any player.
+  public query ({ caller }) func getMatchHistoryForPlayer(_requested : Principal) : async MatchHistory {
+    switch (matchHistories.get(_requested)) {
+      case (null) { { matches = [] } };
+      case (?history) { { matches = history.completedMatches } };
+    };
+  };
+
+  // Send a direct message to another user. Requires #user role.
+  public shared ({ caller }) func sendMessage(recipient : Principal, text : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can send messages");
+    };
+
+    let message : Message = {
+      sender = caller;
+      recipient;
+      text;
+      timestamp = Time.now();
+    };
+
+    // Store under recipient's inbox
+    let recipientMessages = switch (directMessages.get(recipient)) {
+      case (null) { List.empty<Message>() };
+      case (?msgs) { msgs };
+    };
+    recipientMessages.add(message);
+    directMessages.add(recipient, recipientMessages);
+
+    // Also store under sender's outbox so getConversation works symmetrically
+    let senderMessages = switch (directMessages.get(caller)) {
+      case (null) { List.empty<Message>() };
+      case (?msgs) { msgs };
+    };
+    senderMessages.add(message);
+    directMessages.add(caller, senderMessages);
+  };
+
+  // Retrieve the conversation thread between the caller and another user.
+  // Requires #user role. Only the caller can read their own conversations.
+  public query ({ caller }) func getConversation(otherPrincipal : Principal) : async [Message] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can read conversations");
+    };
+
+    // Collect all messages stored under the caller that involve the other participant
+    let callerMessages = switch (directMessages.get(caller)) {
+      case (null) { [] };
+      case (?msgs) {
+        msgs.toArray().filter(
+          func(m : Message) : Bool {
+            (m.sender == caller and m.recipient == otherPrincipal) or
+            (m.sender == otherPrincipal and m.sender == caller)
+          }
+        );
+      };
+    };
+
+    callerMessages;
+  };
+
+  // Returns all conversations for the calling user.
+  // Requires #user role.
+  public query ({ caller }) func getMailbox() : async [Conversation] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can access their mailbox");
+    };
+
+    // Gather all messages that belong to the caller
+    let allCallerMessages = switch (directMessages.get(caller)) {
+      case (null) { [] };
+      case (?msgs) { msgs.toArray() };
+    };
+
+    // Group by the other participant
+    let participantMap = Map.empty<Principal, List.List<Message>>();
+
+    for (msg in allCallerMessages.vals()) {
+      let other = if (msg.sender == caller) { msg.recipient } else { msg.sender };
+      let existing = switch (participantMap.get(other)) {
+        case (null) { List.empty<Message>() };
+        case (?lst) { lst };
+      };
+      existing.add(msg);
+      participantMap.add(other, existing);
+    };
+
+    let conversations = List.empty<Conversation>();
+    for ((participant, msgs) in participantMap.entries()) {
+      conversations.add({
+        participant;
+        messages = msgs.toArray();
+      });
+    };
+
+    conversations.toArray();
+  };
+
+  // ============================= Game session logic =============================
+
+  // Anyone (authenticated or anonymous) can create/host a session — no auth guard needed.
   public shared ({ caller }) func createSession(
     courts : Nat,
     date : ?Text,
@@ -228,10 +470,6 @@ actor {
     sessionType : SessionType,
     isRanked : Bool,
   ) : async SessionCreationResult {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create sessions");
-    };
-
     if (courts == 0) {
       Runtime.trap("Number of courts must be greater than 0");
     };
@@ -261,6 +499,8 @@ actor {
       allGamesAssignments = [];
       previousWaitlist = [];
       isCompleted = false;
+      guestPlayers = [];
+      lastGuestId = 0;
     };
 
     sessions.add(sessionId, initialState);
@@ -272,132 +512,10 @@ actor {
     };
   };
 
-  public query ({ caller }) func getSessionStateByCode(
-    sessionCode : Text,
-  ) : async SessionState {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view session state");
-    };
-
-    switch (findSessionByCode(sessionCode)) {
-      case (null) { Runtime.trap("Session does not exist") };
-      case (?state) { state };
-    };
-  };
-
-  public shared ({ caller }) func joinSessionByCode(sessionCode : Text) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can join sessions");
-    };
-
-    let state = switch (findSessionByCode(sessionCode)) {
-      case (null) { Runtime.trap("Session does not exist") };
-      case (?s) { s };
-    };
-
-    let newPlayers = state.players.concat([caller]);
-    let newState = {
-      state with players = newPlayers;
-    };
-    sessions.add(state.config.sessionId, newState);
-  };
-
   func findSessionByCode(sessionCode : Text) : ?SessionState {
-    switch (sessions.values().toArray().find(func(s) { s.config.sessionCode == sessionCode })) {
+    switch (sessions.values().toArray().find(func(s : SessionState) : Bool { s.config.sessionCode == sessionCode })) {
       case (null) { null };
       case (?state) { ?state };
-    };
-  };
-
-  public shared ({ caller }) func joinSession(sessionId : SessionId) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can join sessions");
-    };
-
-    let state = switch (sessions.get(sessionId)) {
-      case (null) { Runtime.trap("Session does not exist") };
-      case (?s) { s };
-    };
-
-    let newPlayers = state.players.concat([caller]);
-    let newState = {
-      state with players = newPlayers;
-    };
-    sessions.add(sessionId, newState);
-  };
-
-  public shared ({ caller }) func addPlayerToSession(
-    sessionId : SessionId,
-    playerName : Text,
-    mobileNumber : Text,
-    bio : ?Text,
-    profilePicture : ?Text,
-    workField : ?Text,
-  ) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can add players to sessions");
-    };
-
-    let session = switch (sessions.get(sessionId)) {
-      case (null) { Runtime.trap("Session does not exist") };
-      case (?s) { s };
-    };
-
-    if (caller != session.config.host) {
-      Runtime.trap("Only the session host can add players");
-    };
-
-    let initialRating : PlayerRating = {
-      mu = 1500.0;
-      sigma = 350.0;
-      rating = 1500.0 - 2.0 * 350.0;
-    };
-
-    let newProfile : PlayerProfile = {
-      id = caller;
-      name = playerName;
-      rating = initialRating;
-      winLossRecord = null;
-      mobileNumber;
-      bio;
-      profilePicture;
-      workField;
-    };
-
-    profiles.add(caller, newProfile);
-
-    let updatedPlayers = session.players.concat([caller]);
-    let updatedSession = {
-      session with players = updatedPlayers;
-    };
-    sessions.add(sessionId, updatedSession);
-  };
-
-  public query ({ caller }) func getSessionState(sessionId : SessionId) : async SessionState {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view session state");
-    };
-    switch (sessions.get(sessionId)) {
-      case (null) { Runtime.trap("Session does not exist") };
-      case (?state) { state };
-    };
-  };
-
-  public query ({ caller }) func getSessionGameInfo(sessionId : SessionId) : async (Text, ?Text, ?Text, ?Text, ?Nat) {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view session game info");
-    };
-    switch (sessions.get(sessionId)) {
-      case (null) { Runtime.trap("Session does not exist") };
-      case (?state) {
-        (
-          state.config.sessionCode,
-          state.config.date,
-          state.config.time,
-          state.config.venue,
-          state.config.duration,
-        );
-      };
     };
   };
 
@@ -441,10 +559,11 @@ actor {
 
     let shuffledPlayers = shuffleArray(totalPlayers);
 
+    // Prioritize previous waitlist at the front
     let prioritizedPlayers = previousWaitlist.concat(
       shuffledPlayers.filter(
-        func(p) {
-          not previousWaitlist.any(func(w) { w == p });
+        func(p : PlayerId) : Bool {
+          not previousWaitlist.any(func(w : PlayerId) : Bool { w == p });
         }
       )
     );
@@ -486,10 +605,10 @@ actor {
   ) : [AllGamesRoundAssignments] {
     Array.tabulate(
       rotations,
-      func(rotation) {
+      func(rotation : Nat) : AllGamesRoundAssignments {
         let roundAssignments = Array.tabulate(
           maxRounds,
-          func(round) {
+          func(round : Nat) : RoundAssignments {
             if (round == 0) {
               generateRoundAssignments(players, [], courts, round + 1);
             } else {
@@ -505,196 +624,138 @@ actor {
     );
   };
 
-  public query ({ caller }) func getAllGames(
-    sessionId : SessionId,
-    rotations : Nat,
-    roundsPerRotation : Nat,
-  ) : async [AllGamesRoundAssignments] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view all games");
-    };
-
-    let state = switch (sessions.get(sessionId)) {
-      case (null) { Runtime.trap("Session does not exist") };
-      case (?s) { s };
-    };
-
-    if (rotations == 0 or roundsPerRotation == 0) {
-      Runtime.trap("Rotations and rounds per rotation must be greater than 0");
-    };
-
-    generateAllGamesAssignmentsHelper(state.players, state.config.courts, roundsPerRotation, rotations);
-  };
-
-  public shared ({ caller }) func allocatePlayers(sessionId : SessionId) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can allocate players");
-    };
-
-    let state = switch (sessions.get(sessionId)) {
-      case (null) { Runtime.trap("Session does not exist") };
-      case (?s) { s };
-    };
-
-    if (caller != state.config.host) {
-      Runtime.trap("Only the session host can allocate players");
-    };
-
-    if (state.players.size() < 2) {
-      Runtime.trap("Not enough players to allocate courts");
-    };
-
-    let roundAssignments = generateRoundAssignments(
-      state.players,
-      state.previousWaitlist,
-      state.config.courts,
-      state.currentRound,
-    );
-
-    let newState = {
-      state with
-      assignments = roundAssignments.assignments;
-      waitlist = roundAssignments.waitlist;
-      currentRound = state.currentRound + 1;
-      previousWaitlist = roundAssignments.waitlist;
-    };
-
-    sessions.add(sessionId, newState);
-  };
-
-  public shared ({ caller }) func submitMatchResult(
-    sessionId : SessionId,
-    court : Court,
-    outcome : GameOutcome,
-  ) : async MatchId {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can submit match results");
-    };
-
-    let state = switch (sessions.get(sessionId)) {
-      case (null) { Runtime.trap("Session does not exist") };
-      case (?s) { s };
-    };
-
-    if (caller != state.config.host) {
-      Runtime.trap("Only the session host can submit match results");
-    };
-
-    let courtPlayers = switch (state.assignments.find(func(a) { a.court == court })) {
-      case (null) {
-        Runtime.trap("Court does not have a valid assignment");
+  // Main function to retrieve the session state by ID
+  public query func getSession(sessionId : SessionId) : async {
+    #ok : SessionState;
+    #err : SessionNotFound;
+  } {
+    switch (sessions.get(sessionId)) {
+      case (?sessionState) {
+        #ok(sessionState);
       };
-      case (?assignment) { assignment.players };
+      case (null) {
+        #err({
+          message = "Session not found";
+          reason = ?"No session exists for the given session id";
+        });
+      };
     };
+  };
 
-    let matchResult : MatchResult = {
-      court;
-      players = courtPlayers;
-      outcome;
-      timestamp = Time.now();
+  public shared ({ caller }) func joinSession(gameCode : GameCode, guestName : Text) : async {
+    #ok : SessionId;
+    #err : Text;
+  } {
+    let trimmedCode = gameCode.trim(#char ' ');
+
+    switch (findSessionByCode(trimmedCode)) {
+      case (?sessionState) {
+        let usedName = if (guestName.isEmpty()) {
+          "Guest " # Time.now().toText();
+        } else { guestName };
+
+        let newGuest = {
+          guestId = sessionState.guestPlayers.size() + 1;
+          name = usedName;
+          isGuest = true;
+        };
+
+        let updatedState = {
+          sessionState with guestPlayers = sessionState.guestPlayers.concat([newGuest]);
+        };
+
+        sessions.add(sessionState.config.sessionId, updatedState);
+        return #ok(sessionState.config.sessionId);
+      };
+      case (null) {
+        return #err("Session with code {" # trimmedCode # "} does not exist");
+      };
     };
+  };
 
-    for (player in courtPlayers.values()) {
-      switch (profiles.get(player)) {
-        case (null) {};
-        case (?profile) {
-          let winLoss = switch (profile.winLossRecord) {
-            case (null) { (0, 0) };
-            case (?(wins, losses)) { (wins, losses) };
-          };
-
-          let (wins, losses) = switch (outcome) {
-            case (#teamAWin) {
-              switch (courtPlayers.indexOf(player)) {
-                case (?index) {
-                  if (index < 2) {
-                    (winLoss.0 + 1, winLoss.1);
-                  } else {
-                    (winLoss.0, winLoss.1 + 1);
-                  };
-                };
-                case (null) { winLoss };
-              };
+  // Allows the host of a session to manually add a registered player (by principal ID)
+  // to the session's player list, bypassing the normal join-via-code flow.
+  // Requires #user role (the host must be a registered user) and host ownership check.
+  public shared ({ caller }) func addPlayerToSession(sessionId : SessionId, playerId : Principal) : async {
+    #ok : SessionState;
+    #err : Text;
+  } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only registered users can add players to a session");
+    };
+    switch (sessions.get(sessionId)) {
+      case (?currentState) {
+        if (currentState.config.host != caller) {
+          #err("Only the session host can add players");
+        } else {
+          if (currentState.players.any(func(p) { p == playerId })) {
+            #ok(currentState);
+          } else {
+            let updatedPlayers = if (currentState.players.size() == 0) {
+              [playerId];
+            } else {
+              currentState.players.concat([playerId]);
             };
-            case (#teamBWin) {
-              switch (courtPlayers.indexOf(player)) {
-                case (?index) {
-                  if (index >= 2) {
-                    (winLoss.0 + 1, winLoss.1);
-                  } else {
-                    (winLoss.0, winLoss.1 + 1);
-                  };
-                };
-                case (null) { winLoss };
-              };
-            };
+            let updatedState = { currentState with players = updatedPlayers };
+            sessions.add(sessionId, updatedState);
+            #ok(updatedState);
           };
-
-          profiles.add(
-            player,
-            { profile with winLossRecord = ?(wins, losses) },
-          );
         };
       };
+      case (null) { #err("Session does not exist") };
     };
-
-    let newState = {
-      state with matches = state.matches.concat([matchResult]);
-    };
-    sessions.add(sessionId, newState);
-    state.matches.size();
   };
 
-  public shared ({ caller }) func endRound(sessionId : SessionId) : async () {
+  // Allows the host to add a guest (non-registered) player to a session by name.
+  // Requires #user role (the host must be a registered user) and host ownership check.
+  public shared ({ caller }) func addGuestPlayer(sessionId : Text, name : Text) : async {
+    #ok : GuestPlayer;
+    #err : Text;
+  } {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can end rounds");
+      Runtime.trap("Unauthorized: Only registered users can add guest players to a session");
     };
-
-    let session = switch (sessions.get(sessionId)) {
-      case (null) { Runtime.trap("Session does not exist") };
-      case (?s) { s };
+    switch (sessions.get(sessionId)) {
+      case (?currentState) {
+        if (currentState.config.host != caller) {
+          #err("Only the session host can add guest players");
+        } else {
+          let newGuestId = currentState.guestPlayers.size() + 1;
+          let guestPlayer : GuestPlayer = {
+            guestId = newGuestId;
+            name;
+            isGuest = true;
+          };
+          let updatedGuestList = currentState.guestPlayers.concat([guestPlayer]);
+          let updatedState = { currentState with guestPlayers = updatedGuestList };
+          sessions.add(sessionId, updatedState);
+          #ok(guestPlayer);
+        };
+      };
+      case (null) { #err("Session does not exist") };
     };
+  };
 
-    if (caller != session.config.host) {
-      Runtime.trap("Only the session host can end the round");
+  // Search for registered players by name or partial name.
+  // Returns a list of matching player profiles including mobile number.
+  // Requires #user role — only registered users (e.g. session hosts) may search for players.
+  public query ({ caller }) func searchPlayersByName(searchTerm : Text) : async [PlayerSearchResult] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can perform name searches");
     };
-
-    let roundAssignments = generateRoundAssignments(
-      session.players,
-      session.previousWaitlist,
-      session.config.courts,
-      session.currentRound,
+    let lowerSearch = searchTerm.toLower();
+    profiles.values().toArray().filter(
+      func(p : PlayerProfile) : Bool {
+        p.name.toLower().contains(#text lowerSearch);
+      }
+    ).map(
+      func(p : PlayerProfile) : PlayerSearchResult {
+        {
+          id = p.id;
+          name = p.name;
+          mobileNumber = p.mobileNumber;
+        };
+      }
     );
-
-    let newState = {
-      session with
-      assignments = [];
-      waitlist = [];
-      currentRound = session.currentRound + 1;
-      previousWaitlist = roundAssignments.waitlist;
-    };
-
-    sessions.add(sessionId, newState);
-  };
-
-  public shared ({ caller }) func endGame(sessionId : SessionId) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can end games");
-    };
-
-    let session = switch (sessions.get(sessionId)) {
-      case (null) { Runtime.trap("Session does not exist") };
-      case (?s) { s };
-    };
-
-    if (caller != session.config.host) {
-      Runtime.trap("Only the session host can end the game");
-    };
-
-    let newState = {
-      session with isCompleted = true;
-    };
-
-    sessions.add(sessionId, newState);
   };
 };

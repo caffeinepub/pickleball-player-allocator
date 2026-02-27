@@ -1,155 +1,40 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Retry Failed Deployment - Frontend Rebuild",
+  "title": "Add manual player addition option in host dashboard (all game types)",
   "requirements": [
     {
-      "id": "REQ-1",
-      "summary": "Rebuild and redeploy the frontend React application, resolving any compilation or deployment errors that caused the previous build to fail while preserving all existing features",
+      "id": "REQ-3",
+      "summary": "Add React Query hooks for hostAddPlayer and searchPlayers backend functions",
       "acceptanceCriteria": [
-        "Frontend React app builds without errors",
-        "Application deploys successfully to the Internet Computer",
-        "All existing features (session management, player profiles, match recording, game type selector, ranked toggle) remain functional after redeployment",
-        "Authentication and authorization flow works correctly with Internet Identity",
-        "Profile setup modal does not flash on page load",
-        "Session creation, joining, and hosting workflows are intact",
-        "Match result submission and court allocation function properly"
+        "A useHostAddPlayer mutation hook is added to useQueries.ts",
+        "A useSearchPlayers query hook is added to useQueries.ts",
+        "Both hooks follow the existing patterns (error handling, invalidation, toast feedback) in useQueries.ts"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/App.tsx",
-          "operation": "modify",
-          "description": "Review and verify the TanStack Router configuration, auth-choice session guard implementation, and route definitions to ensure no compilation errors exist in the routing setup. Confirm ThemeProvider and Toaster are properly configured and all route components are correctly imported."
-        },
-        {
           "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Review all React Query hooks and mutations for type safety and backend interface compatibility. Ensure query keys are consistent, error handling is proper, and all backend method calls match the backend.d.ts interface signatures. Verify retry logic and invalidation patterns are correct."
-        },
-        {
-          "path": "frontend/src/hooks/useActor.ts",
-          "operation": "modify",
-          "description": "Verify the actor initialization logic is correct, including the authorization component's automatic admin initialization. Ensure the actor is properly cached and invalidated on identity changes. This file must not be modified per constraints, so only verify it compiles correctly."
-        },
-        {
-          "path": "frontend/src/hooks/useInternetIdentity.ts",
-          "operation": "modify",
-          "description": "Verify Internet Identity provider setup and authentication state management. This file must not be modified per constraints, so only verify it compiles correctly and integrates properly with the authorization component."
-        },
-        {
-          "path": "frontend/src/pages/Login.tsx",
-          "operation": "modify",
-          "description": "Review the login page implementation for proper Internet Identity integration following the authorization component's usage guidelines. Verify sessionStorage handling for auth-choice and proper navigation after authentication. Ensure no type errors or missing dependencies."
-        },
-        {
-          "path": "frontend/src/pages/ProfileSetup.tsx",
-          "operation": "modify",
-          "description": "Verify the profile setup form correctly calls saveCallerUserProfile with the UserProfile type matching the backend interface. Ensure proper validation, error handling, and navigation flow. Check that the form prevents the profile setup modal flash as described in authorization component guidelines."
-        },
-        {
-          "path": "frontend/src/pages/ProfileView.tsx",
-          "operation": "modify",
-          "description": "Review the profile view page for proper integration with getCallerUserProfile and saveCallerUserProfile backend methods. Verify inline editing, local storage synchronization, and proper React Query cache invalidation after profile updates."
-        },
-        {
-          "path": "frontend/src/pages/Home.tsx",
-          "operation": "modify",
-          "description": "Verify the home page properly checks authentication state and user profile status using the authorization component's recommended pattern to prevent modal flashing. Ensure quick-resume functionality and navigation to create/join session work correctly. Confirm generated images (frontend/public/assets/generated/app-logo.dim_256x256.png, frontend/public/assets/generated/court-bg.dim_800x600.png) are properly referenced as static assets."
-        },
-        {
-          "path": "frontend/src/pages/CreateSession.tsx",
-          "operation": "modify",
-          "description": "Review session creation page for proper form submission, backend createSession mutation integration, and navigation to host dashboard. Verify all session config parameters match the backend interface types (SessionType enum, isRanked boolean, etc.)."
-        },
-        {
-          "path": "frontend/src/pages/JoinSession.tsx",
-          "operation": "modify",
-          "description": "Verify the join session page correctly validates session codes, calls joinSessionByCode mutation, handles errors gracefully, and navigates to the player session view on success."
-        },
+          "description": "Add useHostAddPlayer mutation hook that accepts sessionId and playerId/principal, invalidates session queries on success, and shows toast feedback. Add useSearchPlayers query hook that accepts a search term string and returns matching PlayerSearchResult records. Both hooks follow existing patterns in the file for error handling and cache invalidation."
+        }
+      ]
+    },
+    {
+      "id": "REQ-4",
+      "summary": "Add 'Add Player Manually' section in HostSessionDashboard for all game types",
+      "acceptanceCriteria": [
+        "A 'Add Player Manually' section is visible in the host dashboard for all game types",
+        "Host can type a player name into a search input and see matching registered players",
+        "Each search result shows the player's name and rating, with an 'Add' button",
+        "Clicking 'Add' calls the hostAddPlayer mutation and shows a success toast or inline error",
+        "Already-added players do not appear in search results",
+        "The UI integrates consistently with the existing dashboard styling and tab structure"
+      ],
+      "file_operations": [
         {
           "path": "frontend/src/pages/HostSessionDashboard.tsx",
           "operation": "modify",
-          "description": "Review the host dashboard for proper session state management, player addition, court allocation triggering, and match result submission. Verify integration with the round-robin scheduler and proper display of all game assignments."
-        },
-        {
-          "path": "frontend/src/pages/PlayerSessionView.tsx",
-          "operation": "modify",
-          "description": "Verify the player session view correctly displays court assignments, waitlist, and full schedule using tabbed navigation. Ensure live session state updates work properly and match result submission is available when appropriate."
-        },
-        {
-          "path": "frontend/src/components/SessionConfigForm.tsx",
-          "operation": "modify",
-          "description": "Review the session config form for proper type handling of SessionType enum values, court count validation, and isRanked toggle. Ensure form submission data matches the createSession backend method signature."
-        },
-        {
-          "path": "frontend/src/components/CourtAssignmentCard.tsx",
-          "operation": "modify",
-          "description": "Verify the court assignment card properly displays team slots, handles optional score entry for ranked sessions, and shows submitted scores. Ensure Principal comparison logic for highlighting the current player works correctly."
-        },
-        {
-          "path": "frontend/src/components/MatchResultSubmission.tsx",
-          "operation": "modify",
-          "description": "Review match result submission component for proper GameOutcome enum handling, court selection, and submitMatchResult mutation integration. Verify error handling for authorization failures."
-        },
-        {
-          "path": "frontend/src/components/AllRoundsSchedule.tsx",
-          "operation": "modify",
-          "description": "Verify the all-rounds schedule component correctly renders collapsible round assignments, highlights the current round, and distinguishes the current player visually using Principal comparison."
-        },
-        {
-          "path": "frontend/src/components/Layout.tsx",
-          "operation": "modify",
-          "description": "Review the layout component for proper header, navigation, and footer rendering. Verify the logout button in AppHeader correctly calls the clear method from useInternetIdentity and clears the query cache."
-        },
-        {
-          "path": "frontend/src/lib/errorHandling.ts",
-          "operation": "modify",
-          "description": "Verify error handling utilities correctly detect and format IC canister errors including authorization failures (Runtime.trap messages from the backend). Ensure user-friendly error messages are shown for common scenarios."
-        },
-        {
-          "path": "frontend/src/lib/scheduler.ts",
-          "operation": "modify",
-          "description": "Review the client-side scheduler for correct round-robin logic, ensuring fair player rotation and proper integration with session state. Verify type compatibility with backend CourtAssignment and PlayerId types."
-        },
-        {
-          "path": "frontend/src/lib/storage.ts",
-          "operation": "modify",
-          "description": "Verify localStorage helpers for player profiles, session data, and name mappings work correctly and maintain backward compatibility. Ensure proper serialization of Principal types."
-        },
-        {
-          "path": "frontend/src/main.tsx",
-          "operation": "modify",
-          "description": "Verify the application entry point correctly initializes React Query and Internet Identity providers. This file must not be modified per constraints, so only verify it compiles correctly."
-        },
-        {
-          "path": "frontend/src/backend.d.ts",
-          "operation": "modify",
-          "description": "Verify the backend type definitions match the actual Motoko backend interface, including all authorization component types (UserRole enum, UserProfile type, and access control methods). Ensure Option types, enum variants, and method signatures are correctly typed."
-        },
-        {
-          "path": "frontend/index.css",
-          "operation": "modify",
-          "description": "Verify the global stylesheet correctly imports Tailwind directives and defines OKLCH color tokens for the pickleball theme. Ensure no CSS syntax errors exist that could break the build."
-        },
-        {
-          "path": "frontend/tailwind.config.js",
-          "operation": "modify",
-          "description": "Review Tailwind configuration for proper theme extensions, custom color tokens, plugins, and content paths. Verify all referenced plugins are installed in package.json."
-        },
-        {
-          "path": "frontend/package.json",
-          "operation": "modify",
-          "description": "Verify all dependencies are correctly declared with compatible versions, including React, TanStack Router, TanStack Query, DFINITY agent libraries, shadcn/ui components, and Tailwind plugins. Ensure build scripts are properly configured for Vite and deployment."
-        },
-        {
-          "path": "frontend/vite.config.ts",
-          "operation": "modify",
-          "description": "Review Vite configuration for proper React plugin setup, build output paths, and any environment-specific settings needed for Internet Computer deployment. Ensure no configuration errors that could cause build failures."
-        },
-        {
-          "path": "frontend/tsconfig.json",
-          "operation": "modify",
-          "description": "Verify TypeScript configuration has correct compiler options, path mappings, and module resolution settings. Ensure strict type checking is enabled and no conflicting options exist that could cause compilation errors."
+          "description": "Add a new 'Add Player Manually' section within the existing tabbed interface. Include a text input for player name search using the useSearchPlayers hook with debouncing. Display matching results in a list showing player name and mobile number, with an 'Add' button per result. Use the useHostAddPlayer mutation when 'Add' is clicked, showing success toast on success and inline error feedback on failure. Filter out players already in the session from search results. Style consistently with existing tabs and use shadcn/ui components (Input, Button, Card) to match the dashboard design. Ensure this section is visible for all session types (random, round-robin, ladder, king-queen)."
         }
       ]
     }

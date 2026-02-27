@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Trophy, Users, Calendar } from 'lucide-react';
-import type { PlayerId } from '../backend';
+import { Ghost } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import CourtAssignmentCard from './CourtAssignmentCard';
 import type { ScheduledRound } from '../lib/scheduler';
 import { resolvePlayerNames } from '../lib/scheduler';
@@ -8,9 +9,8 @@ import { resolvePlayerNames } from '../lib/scheduler';
 interface AllRoundsScheduleProps {
   /** Client-side generated fair schedule */
   scheduledRounds?: ScheduledRound[];
+  /** String array of player names indexed by player position */
   playerNamesList: string[];
-  /** The ordered players array from sessionState.players — used for position-based name lookup (legacy mode) */
-  sessionPlayers?: PlayerId[];
   currentRound: number;
   currentPlayerIndex?: number;
 }
@@ -21,7 +21,7 @@ export default function AllRoundsSchedule({
   currentRound,
   currentPlayerIndex,
 }: AllRoundsScheduleProps) {
-  const [expandedKey, setExpandedKey] = useState<string | null>(`round-0`);
+  const [expandedKey, setExpandedKey] = useState<string | null>('round-0');
 
   const currentPlayerName =
     currentPlayerIndex !== undefined
@@ -33,11 +33,15 @@ export default function AllRoundsSchedule({
       <div className="p-4 space-y-3 bg-background">
         {round.assignments.map(({ court, playerIndices }) => {
           const names = resolvePlayerNames(playerIndices, playerNamesList);
+          const mid = Math.floor(names.length / 2);
+          const teamA = names.slice(0, mid);
+          const teamB = names.slice(mid);
           return (
             <CourtAssignmentCard
               key={court}
-              courtNumber={court}
-              players={names}
+              court={BigInt(court)}
+              teamA={teamA}
+              teamB={teamB}
               currentPlayer={currentPlayerName}
             />
           );

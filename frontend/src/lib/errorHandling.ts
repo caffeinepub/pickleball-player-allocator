@@ -47,6 +47,128 @@ export function isNetworkError(err: unknown): boolean {
 }
 
 /**
+ * Detects if an error is a session-not-found error.
+ * Handles both the typed flag set by useGetSessionState and raw message checks.
+ */
+export function isSessionNotFoundError(err: unknown): boolean {
+  if (!err) return false;
+  // Check the typed flag set by the query hook
+  if ((err as any)?.isSessionNotFound === true) return true;
+  const msg = String((err as any)?.message ?? err);
+  return (
+    msg.includes('Session not found') ||
+    msg.includes('session not found') ||
+    msg.includes('Session does not exist') ||
+    msg.includes('does not exist') ||
+    msg.includes('No session exists')
+  );
+}
+
+/**
+ * Detects if an error is a duplicate player error (player already in session).
+ */
+export function isDuplicatePlayerError(err: unknown): boolean {
+  if (!err) return false;
+  const msg = String((err as any)?.message ?? err);
+  return (
+    msg.includes('already in') ||
+    msg.includes('already exists') ||
+    msg.includes('duplicate') ||
+    msg.includes('Duplicate')
+  );
+}
+
+/**
+ * Detects if an error is an invalid Principal ID format error.
+ */
+export function isInvalidPrincipalError(err: unknown): boolean {
+  if (!err) return false;
+  const msg = String((err as any)?.message ?? err);
+  return (
+    msg.includes('Invalid Principal') ||
+    msg.includes('invalid principal') ||
+    msg.includes('Principal ID format') ||
+    msg.includes('fromText') ||
+    msg.includes('decode')
+  );
+}
+
+/**
+ * Detects if an error is a host-only authorization error.
+ */
+export function isHostOnlyError(err: unknown): boolean {
+  if (!err) return false;
+  const msg = String((err as any)?.message ?? err);
+  return (
+    msg.includes('Only the session host') ||
+    msg.includes('host can add') ||
+    msg.includes('host can perform')
+  );
+}
+
+/**
+ * Returns a user-friendly error message specific to session loading failures.
+ */
+export function formatSessionError(err: unknown): string {
+  if (!err) return 'Unable to load session. Please try again.';
+
+  if (isSessionNotFoundError(err)) {
+    return 'Session not found. It may have ended or the link is invalid.';
+  }
+
+  if (isNetworkError(err)) {
+    return 'Network error. Please check your connection and try again.';
+  }
+
+  if (isCanisterStoppedError(err)) {
+    return 'The service is temporarily unavailable. Please try again in a moment.';
+  }
+
+  if (isAuthError(err)) {
+    return 'Authentication required to view this session.';
+  }
+
+  const msg = String((err as any)?.message ?? err);
+  if (msg.includes('Actor not available') || msg.includes('Unable to connect')) {
+    return 'Still connecting to the network. Please wait a moment and try again.';
+  }
+
+  return 'Unable to load session. Please try again.';
+}
+
+/**
+ * Returns a user-friendly error message for add-player failures.
+ */
+export function formatAddPlayerError(err: unknown): string {
+  if (!err) return 'Failed to add player. Please try again.';
+
+  if (isInvalidPrincipalError(err)) {
+    return 'Invalid Principal ID format. Please check the ID and try again.';
+  }
+
+  if (isDuplicatePlayerError(err)) {
+    return 'This player is already in the session.';
+  }
+
+  if (isHostOnlyError(err)) {
+    return 'Only the session host can add players.';
+  }
+
+  if (isSessionNotFoundError(err)) {
+    return 'Session not found. It may have ended.';
+  }
+
+  if (isNetworkError(err)) {
+    return 'Network error. Please check your connection and try again.';
+  }
+
+  const msg = String((err as any)?.message ?? err);
+  if (msg.length < 120) return msg;
+
+  return 'Failed to add player. Please try again.';
+}
+
+/**
  * Formats an error into a user-friendly message.
  */
 export function formatErrorMessage(err: unknown): string {
@@ -66,7 +188,7 @@ export function formatErrorMessage(err: unknown): string {
     return 'Still connecting to the network. Please wait a moment and try again.';
   }
 
-  if (msg.includes('Session does not exist')) {
+  if (isSessionNotFoundError(err)) {
     return 'Session not found. Please check the session code and try again.';
   }
 
@@ -74,7 +196,7 @@ export function formatErrorMessage(err: unknown): string {
     return 'Not enough players to start. Add more players first.';
   }
 
-  if (msg.includes('Only the session host')) {
+  if (isHostOnlyError(err)) {
     return 'Only the session host can perform this action.';
   }
 

@@ -1,4 +1,43 @@
 {
   "kind": "feature_evidence_report",
-  "features": []
+  "features": [
+    {
+      "featureId": "feature-add-react-query-hooks-in-usequeries-ts-for-the-new-hostaddplayer-and-searchplayers-backend-functions-following-the-existing-hook-patterns-in-that-file",
+      "featureTitle": "Add React Query hooks in useQueries.ts for the new hostAddPlayer and searchPlayers backend functions, following the existing hook patterns in that file.",
+      "files": [
+        "frontend/src/hooks/useQueries.ts"
+      ],
+      "components": [
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "authorization@4.0.0"
+      ],
+      "testIds": [
+        "REQ-3"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-in-hostsessiondashboard-tsx-add-a-add-player-manually-ui-section-within-the-existing-tabbed-interface-that-lets-the-host-search-for-registered-players-by-name-and-add-them-directly-to-the-session-this-section-must-be-visible-and-functional-for-all-game-types-random-round-robin-ladder-king-queen-display-a-search-input-a-list-of-matching-results-with-an-add-button-per-result-and-show-inline-success-error-feedback-when-a-player-is-added",
+      "featureTitle": "In HostSessionDashboard.tsx, add a 'Add Player Manually' UI section (within the existing tabbed interface) that lets the host search for registered players by name and add them directly to the session. This section must be visible and functional for all game types (random, round-robin, ladder, king-queen). Display a search input, a list of matching results with an 'Add' button per result, and show inline success/error feedback when a player is added.",
+      "files": [
+        "frontend/src/pages/HostSessionDashboard.tsx"
+      ],
+      "components": [
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "authorization@4.0.0"
+      ],
+      "testIds": [
+        "REQ-4"
+      ],
+      "confidence": "high"
+    }
+  ]
 }

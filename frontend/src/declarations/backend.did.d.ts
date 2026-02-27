@@ -14,6 +14,18 @@ export interface AllGamesRoundAssignments {
   'round' : bigint,
   'roundAssignments' : Array<RoundAssignments>,
 }
+export interface CompletedMatch {
+  'teamScores' : [bigint, bigint],
+  'date' : Time,
+  'court' : Court,
+  'opponentNames' : Array<string>,
+  'sessionId' : SessionId,
+  'outcome' : GameOutcome,
+}
+export interface Conversation {
+  'messages' : Array<Message>,
+  'participant' : Principal,
+}
 export type Court = bigint;
 export interface CourtAssignment {
   'court' : Court,
@@ -22,14 +34,40 @@ export interface CourtAssignment {
 export type GameCode = string;
 export type GameOutcome = { 'teamAWin' : null } |
   { 'teamBWin' : null };
-export type MatchId = bigint;
+export type GuestId = bigint;
+export interface GuestPlayer {
+  'isGuest' : boolean,
+  'name' : string,
+  'guestId' : GuestId,
+}
+export interface MatchHistory { 'matches' : Array<CompletedMatch> }
 export interface MatchResult {
   'court' : Court,
   'players' : Array<PlayerId>,
   'timestamp' : Time,
   'outcome' : GameOutcome,
 }
+export interface Message {
+  'text' : string,
+  'recipient' : Principal,
+  'sender' : Principal,
+  'timestamp' : Time,
+}
 export type PlayerId = Principal;
+export interface PlayerSearchResult {
+  'id' : Principal,
+  'name' : string,
+  'mobileNumber' : string,
+}
+export interface PublicProfile {
+  'id' : Principal,
+  'bio' : [] | [string],
+  'name' : string,
+  'workField' : [] | [string],
+  'profilePicture' : [] | [string],
+  'winRate' : [] | [number],
+  'winLossRecord' : [] | [[bigint, bigint]],
+}
 export interface RoundAssignments {
   'assignments' : Array<CourtAssignment>,
   'waitlist' : Array<PlayerId>,
@@ -54,15 +92,21 @@ export interface SessionCreationResult {
   'config' : SessionConfig,
 }
 export type SessionId = string;
+export interface SessionNotFound {
+  'message' : string,
+  'reason' : [] | [string],
+}
 export interface SessionState {
   'assignments' : Array<CourtAssignment>,
   'isCompleted' : boolean,
   'previousWaitlist' : Array<PlayerId>,
   'currentRound' : bigint,
+  'guestPlayers' : Array<GuestPlayer>,
   'waitlist' : Array<PlayerId>,
   'matches' : Array<MatchResult>,
   'players' : Array<PlayerId>,
   'allGamesAssignments' : Array<AllGamesRoundAssignments>,
+  'lastGuestId' : GuestId,
   'config' : SessionConfig,
 }
 export type SessionType = { 'randomAllotment' : null } |
@@ -82,13 +126,21 @@ export type UserRole = { 'admin' : null } |
   { 'guest' : null };
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
-  'addPlayerToSession' : ActorMethod<
-    [SessionId, string, string, [] | [string], [] | [string], [] | [string]],
-    undefined
+  'addGuestPlayer' : ActorMethod<
+    [string, string],
+    { 'ok' : GuestPlayer } |
+      { 'err' : string }
   >,
-  'allocatePlayers' : ActorMethod<[SessionId], undefined>,
+  'addPlayerToSession' : ActorMethod<
+    [SessionId, Principal],
+    { 'ok' : SessionState } |
+      { 'err' : string }
+  >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'createPlayerProfile' : ActorMethod<[string], PlayerId>,
+  'createGuestProfile' : ActorMethod<
+    [string, string, [] | [string], [] | [string], [] | [string]],
+    PublicProfile
+  >,
   'createSession' : ActorMethod<
     [
       bigint,
@@ -102,26 +154,29 @@ export interface _SERVICE {
     ],
     SessionCreationResult
   >,
-  'endGame' : ActorMethod<[SessionId], undefined>,
-  'endRound' : ActorMethod<[SessionId], undefined>,
-  'getAllGames' : ActorMethod<
-    [SessionId, bigint, bigint],
-    Array<AllGamesRoundAssignments>
-  >,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
-  'getSessionGameInfo' : ActorMethod<
+  'getConversation' : ActorMethod<[Principal], Array<Message>>,
+  'getMailbox' : ActorMethod<[], Array<Conversation>>,
+  'getMatchHistory' : ActorMethod<[], MatchHistory>,
+  'getMatchHistoryForPlayer' : ActorMethod<[Principal], MatchHistory>,
+  'getPublicProfile' : ActorMethod<[Principal], [] | [PublicProfile]>,
+  'getSession' : ActorMethod<
     [SessionId],
-    [string, [] | [string], [] | [string], [] | [string], [] | [bigint]]
+    { 'ok' : SessionState } |
+      { 'err' : SessionNotFound }
   >,
-  'getSessionState' : ActorMethod<[SessionId], SessionState>,
-  'getSessionStateByCode' : ActorMethod<[string], SessionState>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'getUserProfileAdmin' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
-  'joinSession' : ActorMethod<[SessionId], undefined>,
-  'joinSessionByCode' : ActorMethod<[string], undefined>,
+  'joinSession' : ActorMethod<
+    [GameCode, string],
+    { 'ok' : SessionId } |
+      { 'err' : string }
+  >,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
-  'submitMatchResult' : ActorMethod<[SessionId, Court, GameOutcome], MatchId>,
+  'searchPlayersByName' : ActorMethod<[string], Array<PlayerSearchResult>>,
+  'sendMessage' : ActorMethod<[Principal, string], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

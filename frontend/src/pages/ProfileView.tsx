@@ -1,382 +1,246 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import {
-  useGetCallerUserProfile,
-  useSaveCallerUserProfile,
-} from "@/hooks/useQueries";
-import {
-  Loader2,
-  User,
-  Phone,
-  Briefcase,
-  Camera,
-  Star,
-  Edit2,
-  Check,
-  X,
-} from "lucide-react";
-import { savePlayerProfile, getPlayerProfile } from "@/lib/storage";
-import { formatRating } from "@/lib/utils";
-
-const COUNTRY_CODES = [
-  { code: "+1", country: "US/CA" },
-  { code: "+44", country: "UK" },
-  { code: "+61", country: "AU" },
-  { code: "+64", country: "NZ" },
-  { code: "+65", country: "SG" },
-  { code: "+60", country: "MY" },
-  { code: "+63", country: "PH" },
-  { code: "+66", country: "TH" },
-  { code: "+81", country: "JP" },
-  { code: "+82", country: "KR" },
-  { code: "+86", country: "CN" },
-  { code: "+91", country: "IN" },
-  { code: "+49", country: "DE" },
-  { code: "+33", country: "FR" },
-  { code: "+34", country: "ES" },
-  { code: "+39", country: "IT" },
-  { code: "+55", country: "BR" },
-  { code: "+52", country: "MX" },
-  { code: "+27", country: "ZA" },
-  { code: "+971", country: "UAE" },
-];
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { useInternetIdentity } from '../hooks/useInternetIdentity';
+import { useGetCallerUserProfile, useSaveCallerUserProfile } from '../hooks/useQueries';
+import { getPlayerProfile, savePlayerProfile } from '../lib/storage';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { User, Phone, Briefcase, FileText, Edit2, Save, X, History, ArrowLeft } from 'lucide-react';
+import { getAuthChoice } from './Login';
 
 export default function ProfileView() {
   const navigate = useNavigate();
-  const { data: userProfile, isLoading } = useGetCallerUserProfile();
+  const { identity } = useInternetIdentity();
+  const authChoice = getAuthChoice();
+  const isGuest = authChoice === 'guest' || !identity;
+
+  const { data: backendProfile, isLoading: profileLoading } = useGetCallerUserProfile();
   const saveProfile = useSaveCallerUserProfile();
-  const localProfile = getPlayerProfile();
 
   const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState("");
-  const [countryCode, setCountryCode] = useState("+1");
-  const [mobileNumber, setMobileNumber] = useState("");
-  const [bio, setBio] = useState("");
-  const [workField, setWorkField] = useState("");
-  const [profilePicture, setProfilePicture] = useState<string | undefined>(undefined);
+  const [name, setName] = useState('');
+  const [mobile, setMobile] = useState('');
+  const [bio, setBio] = useState('');
+  const [workField, setWorkField] = useState('');
+  const [error, setError] = useState('');
 
+  // Load profile from backend or localStorage
   useEffect(() => {
-    if (userProfile) {
-      setName(userProfile.name);
-      const mobile = userProfile.mobileNumber || "";
-      const matchedCode = COUNTRY_CODES.find((cc) => mobile.startsWith(cc.code));
-      if (matchedCode) {
-        setCountryCode(matchedCode.code);
-        setMobileNumber(mobile.slice(matchedCode.code.length));
-      } else {
-        setMobileNumber(mobile);
+    if (backendProfile) {
+      setName(backendProfile.name || '');
+      setMobile(backendProfile.mobileNumber || '');
+      setBio(backendProfile.bio || '');
+      setWorkField(backendProfile.workField || '');
+    } else if (!profileLoading) {
+      // Fallback to localStorage
+      const stored = getPlayerProfile();
+      if (stored) {
+        setName(stored.name || '');
+        setMobile(stored.mobileNumber || '');
+        setBio(stored.bio || '');
+        setWorkField(stored.workField || '');
       }
-      setBio(userProfile.bio ?? "");
-      setWorkField(userProfile.workField ?? "");
-      setProfilePicture(userProfile.profilePicture ?? localProfile?.profilePicture);
     }
-  }, [userProfile]);
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setProfilePicture(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
+  }, [backendProfile, profileLoading]);
 
   const handleSave = async () => {
-    const fullMobile = `${countryCode}${mobileNumber.replace(/\s/g, "")}`;
+    setError('');
+    if (!name.trim()) {
+      setError('Name is required');
+      return;
+    }
 
     try {
-      await saveProfile.mutateAsync({
-        name: name.trim(),
-        mobileNumber: fullMobile,
-        bio: bio.trim() || undefined,
-        profilePicture: profilePicture,
-        workField: workField.trim() || undefined,
-      });
-      // principalId is optional in StoredPlayerProfile
+      if (!isGuest) {
+        await saveProfile.mutateAsync({
+          name: name.trim(),
+          mobileNumber: mobile.trim(),
+          bio: bio.trim() || undefined,
+          workField: workField.trim() || undefined,
+          profilePicture: undefined,
+        });
+      }
+
+      // Always save to localStorage
       savePlayerProfile({
         name: name.trim(),
-        mobileNumber: fullMobile,
+        mobileNumber: mobile.trim(),
         bio: bio.trim() || undefined,
-        profilePicture: profilePicture,
         workField: workField.trim() || undefined,
+        principalId: identity?.getPrincipal().toString(),
       });
+
       setIsEditing(false);
-    } catch (err) {
-      console.error("Failed to save profile:", err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save profile';
+      setError(msg);
     }
   };
 
-  const handleCancel = () => {
-    if (userProfile) {
-      setName(userProfile.name);
-      const mobile = userProfile.mobileNumber || "";
-      const matchedCode = COUNTRY_CODES.find((cc) => mobile.startsWith(cc.code));
-      if (matchedCode) {
-        setCountryCode(matchedCode.code);
-        setMobileNumber(mobile.slice(matchedCode.code.length));
-      } else {
-        setMobileNumber(mobile);
-      }
-      setBio(userProfile.bio ?? "");
-      setWorkField(userProfile.workField ?? "");
-      setProfilePicture(userProfile.profilePicture ?? localProfile?.profilePicture);
-    }
-    setIsEditing(false);
-  };
+  const displayName = name || 'Player';
+  const initials = displayName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 
-  if (isLoading) {
+  if (profileLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="text-muted-foreground text-sm animate-pulse">Loading profile...</div>
       </div>
     );
   }
-
-  if (!userProfile) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-4">
-        <p className="text-muted-foreground">No profile found.</p>
-        <Button onClick={() => navigate({ to: "/profile/setup" })}>
-          Set Up Profile
-        </Button>
-      </div>
-    );
-  }
-
-  const displayPicture = profilePicture ?? localProfile?.profilePicture;
-  const initials = userProfile.name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-
-  const INITIAL_RATING = 800;
 
   return (
-    <div className="max-w-md mx-auto p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground">My Profile</h1>
-        {!isEditing ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsEditing(true)}
-            className="gap-1.5"
-          >
-            <Edit2 className="w-3.5 h-3.5" />
-            Edit
-          </Button>
-        ) : (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCancel}
-              disabled={saveProfile.isPending}
-              className="gap-1.5"
-            >
-              <X className="w-3.5 h-3.5" />
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={saveProfile.isPending}
-              className="gap-1.5"
-            >
-              {saveProfile.isPending ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Check className="w-3.5 h-3.5" />
-              )}
-              Save
-            </Button>
-          </div>
-        )}
+    <div className="max-w-lg mx-auto px-4 py-6 flex flex-col gap-4">
+      {/* Back button */}
+      <button
+        onClick={() => navigate({ to: '/' })}
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors w-fit"
+      >
+        <ArrowLeft size={16} />
+        Back to Home
+      </button>
+
+      {/* Avatar & name */}
+      <div className="flex flex-col items-center gap-3 py-4">
+        <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center text-2xl font-bold text-primary">
+          {initials}
+        </div>
+        <div className="text-center">
+          <h1 className="text-xl font-bold text-foreground font-display">{displayName}</h1>
+          {isGuest && (
+            <Badge variant="secondary" className="mt-1 text-xs">Guest</Badge>
+          )}
+        </div>
       </div>
 
-      {/* Avatar */}
-      <Card className="shadow-card">
-        <CardContent className="pt-6 pb-4 flex flex-col items-center gap-3">
-          <div className="relative w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border-2 border-border">
-            {displayPicture ? (
-              <img
-                src={displayPicture}
-                alt={userProfile.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-2xl font-bold text-primary">{initials}</span>
-            )}
-            {isEditing && (
-              <label className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer rounded-full">
-                <Camera className="w-6 h-6 text-white" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageUpload}
-                />
-              </label>
-            )}
-          </div>
-          <div className="text-center">
-            <p className="font-bold text-lg text-foreground">{userProfile.name}</p>
-            {userProfile.workField && (
-              <p className="text-sm text-muted-foreground">{userProfile.workField}</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Rating Card */}
-      <Card className="shadow-card">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <Star className="w-5 h-5 text-primary" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                Rating
-              </p>
-              <p className="text-2xl font-bold text-foreground">
-                {formatRating(INITIAL_RATING)}
-              </p>
-            </div>
-            <Badge variant="secondary" className="text-xs">
-              Hybrid TrueSkill-Elo
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Your rating is calculated automatically after each match using our proprietary algorithm.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Profile Details */}
-      <Card className="shadow-card">
-        <CardHeader className="pb-3">
+      {/* Profile details card */}
+      <Card>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-base">Profile Details</CardTitle>
+          {!isEditing ? (
+            <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
+              <Edit2 size={14} className="mr-1" />
+              Edit
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
+                <X size={14} className="mr-1" />
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={saveProfile.isPending}>
+                <Save size={14} className="mr-1" />
+                {saveProfile.isPending ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          )}
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Name */}
-          <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wide">
-              <User className="w-3 h-3" />
-              Full Name
-            </Label>
-            {isEditing ? (
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your full name"
-              />
-            ) : (
-              <p className="text-sm font-medium text-foreground">{userProfile.name}</p>
-            )}
-          </div>
-
-          <Separator />
-
-          {/* Mobile */}
-          <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wide">
-              <Phone className="w-3 h-3" />
-              Mobile Number
-            </Label>
-            {isEditing ? (
-              <div className="flex gap-2">
-                <select
-                  value={countryCode}
-                  onChange={(e) => setCountryCode(e.target.value)}
-                  className="flex h-9 rounded-md border border-input bg-background px-2 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring w-24 flex-shrink-0"
-                >
-                  {COUNTRY_CODES.map((cc) => (
-                    <option key={cc.code} value={cc.code}>
-                      {cc.code} {cc.country}
-                    </option>
-                  ))}
-                </select>
+        <CardContent className="flex flex-col gap-4">
+          {isEditing ? (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="name" className="flex items-center gap-1.5 text-sm">
+                  <User size={14} />
+                  Name
+                </Label>
                 <Input
-                  value={mobileNumber}
-                  onChange={(e) =>
-                    setMobileNumber(e.target.value.replace(/[^\d\s]/g, ""))
-                  }
-                  placeholder="Phone number"
-                  className="flex-1"
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your display name"
                 />
               </div>
-            ) : (
-              <p className="text-sm font-medium text-foreground">
-                {userProfile.mobileNumber || "—"}
-              </p>
-            )}
-          </div>
-
-          {(userProfile.workField || isEditing) && (
-            <>
-              <Separator />
-              <div className="space-y-1.5">
-                <Label className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wide">
-                  <Briefcase className="w-3 h-3" />
-                  Work Field
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="mobile" className="flex items-center gap-1.5 text-sm">
+                  <Phone size={14} />
+                  Mobile Number
                 </Label>
-                {isEditing ? (
-                  <Input
-                    value={workField}
-                    onChange={(e) => setWorkField(e.target.value)}
-                    placeholder="e.g. Software Engineer, Teacher..."
-                  />
-                ) : (
-                  <p className="text-sm font-medium text-foreground">
-                    {userProfile.workField || "—"}
-                  </p>
-                )}
+                <Input
+                  id="mobile"
+                  type="tel"
+                  value={mobile}
+                  onChange={(e) => setMobile(e.target.value)}
+                  placeholder="+1 234 567 8900"
+                />
               </div>
-            </>
-          )}
-
-          {(userProfile.bio || isEditing) && (
-            <>
-              <Separator />
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="workField" className="flex items-center gap-1.5 text-sm">
+                  <Briefcase size={14} />
+                  Work / Field
+                </Label>
+                <Input
+                  id="workField"
+                  value={workField}
+                  onChange={(e) => setWorkField(e.target.value)}
+                  placeholder="e.g. Software Engineer"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="bio" className="flex items-center gap-1.5 text-sm">
+                  <FileText size={14} />
                   Bio
                 </Label>
-                {isEditing ? (
-                  <Textarea
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    placeholder="Tell other players about yourself..."
-                    rows={3}
-                    className="resize-none"
-                  />
-                ) : (
-                  <p className="text-sm text-foreground">{userProfile.bio || "—"}</p>
-                )}
+                <Textarea
+                  id="bio"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="A short bio..."
+                  rows={3}
+                />
               </div>
+              {error && <p className="text-destructive text-sm">{error}</p>}
+            </>
+          ) : (
+            <>
+              <div className="flex items-start gap-3">
+                <User size={16} className="text-muted-foreground mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Name</p>
+                  <p className="text-sm font-medium">{name || '—'}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Phone size={16} className="text-muted-foreground mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Mobile</p>
+                  <p className="text-sm font-medium">{mobile || '—'}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Briefcase size={16} className="text-muted-foreground mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Work / Field</p>
+                  <p className="text-sm font-medium">{workField || '—'}</p>
+                </div>
+              </div>
+              {bio && (
+                <div className="flex items-start gap-3">
+                  <FileText size={16} className="text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Bio</p>
+                    <p className="text-sm">{bio}</p>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </CardContent>
       </Card>
 
-      <Button
-        variant="outline"
-        className="w-full"
-        onClick={() => navigate({ to: "/" })}
-      >
-        Back to Home
-      </Button>
+      {/* Game History link */}
+      {!isGuest && (
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => navigate({ to: '/history' })}
+        >
+          <History size={16} className="mr-2" />
+          View Game History
+        </Button>
+      )}
     </div>
   );
 }

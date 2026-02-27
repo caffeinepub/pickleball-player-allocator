@@ -1,36 +1,100 @@
 {
   "kind": "build_request",
-  "title": "Retry failed deployment build",
-  "priority": "high",
+  "title": "Add manual player addition option in host dashboard (all game types)",
+  "projectName": "The Ball Club",
+  "priority": "normal",
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "Rebuild and redeploy the full application (backend Motoko actor and React frontend) resolving any compilation or deployment errors that caused the previous build to fail.",
-      "target": "both",
+      "text": "Add a backend function that allows the host of a session to manually add a registered player (by their principal ID or player name search) to the session's player list, bypassing the normal join-via-code flow. This function must validate that the caller is the session host and that the player is not already in the session.",
+      "target": "backend",
       "source": {
         "messageIds": [
-          "msg-3"
+          "msg-4"
         ],
         "quotes": [
-          "There was an development error re try"
+          "Add an option for host to add players manually for a game in host dashboard",
+          "this is common for all game types"
         ]
       },
       "acceptanceCriteria": [
-        "Backend Motoko actor compiles without errors",
-        "Frontend React app builds without errors",
-        "Application deploys successfully to the Internet Computer",
-        "All existing features (session management, player profiles, match recording, game type selector, ranked toggle) remain functional after redeployment"
+        "A new backend function (e.g., hostAddPlayer) is available in the main actor",
+        "Only the session host can call this function; unauthorized callers receive an error",
+        "The function rejects attempts to add a player already in the session (duplicate guard)",
+        "The function works regardless of game type (random/round-robin/ladder/king-queen)",
+        "Successfully added player appears in the session's player list immediately"
+      ]
+    },
+    {
+      "id": "REQ-2",
+      "text": "Add a backend function that allows the host to search for registered players by name or partial name, returning a list of matching player profiles. This supports the host dashboard UI for looking up players to add manually.",
+      "target": "backend",
+      "source": {
+        "messageIds": [
+          "msg-4"
+        ],
+        "quotes": [
+          "Add an option for host to add players manually for a game in host dashboard"
+        ]
+      },
+      "acceptanceCriteria": [
+        "A search/lookup function exists in the main actor that accepts a name query string",
+        "Returns matching PlayerProfile records (name, principal, rating) for registered users",
+        "Search is case-insensitive and supports partial matches",
+        "Results exclude players already in the current session"
+      ]
+    },
+    {
+      "id": "REQ-3",
+      "text": "Add React Query hooks in useQueries.ts for the new hostAddPlayer and searchPlayers backend functions, following the existing hook patterns in that file.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-4"
+        ],
+        "quotes": [
+          "Add an option for host to add players manually for a game in host dashboard"
+        ]
+      },
+      "acceptanceCriteria": [
+        "A useHostAddPlayer mutation hook is added to useQueries.ts",
+        "A useSearchPlayers query hook is added to useQueries.ts",
+        "Both hooks follow the existing patterns (error handling, invalidation, toast feedback) in useQueries.ts"
+      ]
+    },
+    {
+      "id": "REQ-4",
+      "text": "In HostSessionDashboard.tsx, add a 'Add Player Manually' UI section (within the existing tabbed interface) that lets the host search for registered players by name and add them directly to the session. This section must be visible and functional for all game types (random, round-robin, ladder, king-queen). Display a search input, a list of matching results with an 'Add' button per result, and show inline success/error feedback when a player is added.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-4"
+        ],
+        "quotes": [
+          "Add an option for host to add players manually for a game in host dashboard",
+          "this is common for all game types"
+        ]
+      },
+      "acceptanceCriteria": [
+        "A 'Add Player Manually' section is visible in the host dashboard for all game types",
+        "Host can type a player name into a search input and see matching registered players",
+        "Each search result shows the player's name and rating, with an 'Add' button",
+        "Clicking 'Add' calls the hostAddPlayer mutation and shows a success toast or inline error",
+        "Already-added players do not appear in search results",
+        "The UI integrates consistently with the existing dashboard styling and tab structure"
       ]
     }
   ],
   "constraints": [
-    "Do not change any existing feature logic or data models",
-    "Do not modify immutable frontend paths (hooks/useInternetIdentity.ts, hooks/useActor.ts, main.tsx, components/ui)"
+    "All Motoko logic must remain in backend/main.mo (single-actor architecture)",
+    "Do not modify files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui",
+    "The manual add feature must apply to all game types without conditional exclusions"
   ],
   "nonGoals": [
-    "Adding new features",
-    "Changing UI design or layout",
-    "Modifying backend data schema"
+    "Adding players via QR code or invite link (only manual name search in dashboard)",
+    "Removing or kicking players from a session (separate feature)",
+    "Modifying the existing guest player addition flow",
+    "Changes to the player-facing JoinSession page"
   ],
   "imageRequirements": {
     "required": [],

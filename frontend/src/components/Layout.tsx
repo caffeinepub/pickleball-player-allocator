@@ -1,118 +1,118 @@
 import React from 'react';
-import { Link, useRouter } from '@tanstack/react-router';
-import { ArrowLeft, LogOut } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useInternetIdentity } from '@/hooks/useInternetIdentity';
+import { useNavigate } from '@tanstack/react-router';
+import { useInternetIdentity } from '../hooks/useInternetIdentity';
 import { useQueryClient } from '@tanstack/react-query';
-
-const AUTH_CHOICE_KEY = 'pickleball_auth_choice';
+import { MessageSquare, History, User, Home, LogOut } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
-  title?: string;
-  showBack?: boolean;
-  backTo?: string;
-  headerRight?: React.ReactNode;
-  noPadding?: boolean;
 }
 
-export function Layout({ children, title, showBack, backTo, headerRight, noPadding }: LayoutProps) {
-  const router = useRouter();
-
-  const handleBack = () => {
-    if (backTo) {
-      router.navigate({ to: backTo });
-    } else {
-      router.history.back();
-    }
-  };
-
+export default function Layout({ children }: LayoutProps) {
   return (
-    <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
-      {/* Header */}
-      {title && (
-        <header className="sticky top-0 z-40 bg-card border-b border-border shadow-xs">
-          <div className="flex items-center gap-3 px-4 py-3">
-            {showBack && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleBack}
-                className="shrink-0 -ml-2 btn-touch"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            )}
-            <h1 className="font-display font-bold text-lg text-foreground flex-1 truncate">
-              {title}
-            </h1>
-            {headerRight && <div className="shrink-0">{headerRight}</div>}
-          </div>
-        </header>
-      )}
-
-      {/* Main Content */}
-      <main className={`flex-1 ${noPadding ? '' : 'px-4 py-4'}`}>
+    <div className="min-h-screen bg-background flex flex-col">
+      <AppHeader />
+      <main className="flex-1 overflow-y-auto">
         {children}
       </main>
-
-      {/* Footer */}
-      <footer className="py-4 px-4 text-center border-t border-border">
-        <p className="text-xs text-muted-foreground">
-          Built with{' '}
-          <span className="text-destructive">♥</span>{' '}
-          using{' '}
-          <a
-            href={`https://caffeine.ai/?utm_source=Caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname || 'pickleball-allocator')}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary font-medium hover:underline"
-          >
-            caffeine.ai
-          </a>
-          {' '}· © {new Date().getFullYear()}
-        </p>
-      </footer>
+      <AppFooter />
     </div>
   );
 }
 
-export function AppHeader() {
-  const router = useRouter();
+function AppHeader() {
+  const navigate = useNavigate();
   const { clear, identity } = useInternetIdentity();
   const queryClient = useQueryClient();
+  const isAuthenticated = !!identity;
 
   const handleLogout = async () => {
-    // Clear auth choice so user is sent back to login
-    sessionStorage.removeItem(AUTH_CHOICE_KEY);
-    if (identity) {
-      await clear();
-    }
+    sessionStorage.removeItem('authChoice');
+    await clear();
     queryClient.clear();
-    router.navigate({ to: '/login' });
+    navigate({ to: '/login' });
   };
 
   return (
-    <header className="sticky top-0 z-40 gradient-primary shadow-md">
-      <div className="max-w-md mx-auto flex items-center gap-3 px-4 py-3">
-        <img
-          src="/assets/generated/app-logo.dim_256x256.png"
-          alt="Pickleball"
-          className="h-8 w-8 rounded-lg object-cover"
-        />
-        <span className="font-display font-bold text-lg text-primary-foreground flex-1">
-          PickleBall Allocator
-        </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleLogout}
-          className="text-primary-foreground hover:bg-primary-foreground/20 shrink-0"
-          title="Sign out / Switch account"
+    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
+      <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
+        <button
+          onClick={() => navigate({ to: '/' })}
+          className="flex items-center gap-2"
         >
-          <LogOut className="h-4 w-4" />
-        </Button>
+          <span className="text-xl font-bold text-primary tracking-tight font-display">
+            The Ball Club
+          </span>
+        </button>
+
+        <div className="flex items-center gap-1">
+          {isAuthenticated && (
+            <>
+              <button
+                onClick={() => navigate({ to: '/messages' })}
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Messages"
+              >
+                <MessageSquare size={18} />
+              </button>
+              <button
+                onClick={() => navigate({ to: '/history' })}
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Game History"
+              >
+                <History size={18} />
+              </button>
+              <button
+                onClick={() => navigate({ to: '/profile' })}
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Profile"
+              >
+                <User size={18} />
+              </button>
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                title="Logout"
+              >
+                <LogOut size={18} />
+              </button>
+            </>
+          )}
+          {!isAuthenticated && (
+            <button
+              onClick={() => navigate({ to: '/' })}
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="Home"
+            >
+              <Home size={18} />
+            </button>
+          )}
+        </div>
       </div>
     </header>
+  );
+}
+
+function AppFooter() {
+  const year = new Date().getFullYear();
+  const appId = encodeURIComponent(typeof window !== 'undefined' ? window.location.hostname : 'the-ball-club');
+
+  return (
+    <footer className="border-t border-border bg-background/80 py-4 px-4 text-center">
+      <p className="text-xs text-muted-foreground">
+        © {year} The Ball Club.{' '}
+        Built with{' '}
+        <span className="text-red-500">♥</span>{' '}
+        using{' '}
+        <a
+          href={`https://caffeine.ai/?utm_source=Caffeine-footer&utm_medium=referral&utm_content=${appId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary hover:underline"
+        >
+          caffeine.ai
+        </a>
+      </p>
+    </footer>
   );
 }

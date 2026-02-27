@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { ArrowLeft, Hash, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,6 @@ export default function JoinSession() {
   const joinSessionMutation = useJoinSession();
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Allow alphanumeric codes of any reasonable length (up to 20 chars)
     const value = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     setSessionCode(value.slice(0, 20));
     setError('');
@@ -34,21 +33,30 @@ export default function JoinSession() {
     }
 
     try {
-      await joinSessionMutation.mutateAsync({ sessionCode });
+      // useJoinSession now returns the SessionId string directly
+      const sessionId = await joinSessionMutation.mutateAsync({
+        sessionCode: sessionCode.trim().toUpperCase(),
+      });
+
       saveCurrentSession({
-        sessionId: '',
-        sessionCode,
+        sessionId,
+        sessionCode: sessionCode.trim().toUpperCase(),
         role: 'player',
       });
-      navigate({ to: '/session/$sessionId/player', params: { sessionId: sessionCode } });
+
+      navigate({ to: '/session/$sessionId', params: { sessionId } });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      if (message.includes('Session does not exist') || message.includes('does not exist')) {
+      if (
+        message.includes('does not exist') ||
+        message.includes('not found') ||
+        message.includes('Session with code')
+      ) {
         setError('Game not found. Please check the code and try again.');
       } else if (message.includes('Unauthorized')) {
         setError('You need to be logged in to join a game.');
       } else {
-        setError('Failed to join game. Please try again.');
+        setError(message || 'Failed to join game. Please try again.');
       }
     }
   };

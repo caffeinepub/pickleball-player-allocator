@@ -4,11 +4,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, CheckCircle2 } from 'lucide-react';
+import { Loader2, CheckCircle2, Ghost } from 'lucide-react';
 
 interface CourtAssignmentCardProps {
-  courtNumber: number;
-  players: string[];
+  court: bigint;
+  teamA: string[];
+  teamB: string[];
   currentPlayer?: string;
   // Score entry (for ranked sessions, host only)
   showScoreEntry?: boolean;
@@ -17,24 +18,27 @@ interface CourtAssignmentCardProps {
   // Display submitted scores (for all users after host submits)
   submittedTeamAScore?: number;
   submittedTeamBScore?: number;
+  // Guest player names (to show Guest badge)
+  guestPlayerIds?: string[];
 }
 
 export default function CourtAssignmentCard({
-  courtNumber,
-  players,
+  court,
+  teamA,
+  teamB,
   currentPlayer,
   showScoreEntry = false,
   onScoreSubmit,
   isScoreSubmitting = false,
   submittedTeamAScore,
   submittedTeamBScore,
+  guestPlayerIds = [],
 }: CourtAssignmentCardProps) {
   const [teamAScore, setTeamAScore] = useState('');
   const [teamBScore, setTeamBScore] = useState('');
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
 
-  const teamA = players.slice(0, 2);
-  const teamB = players.slice(2, 4);
+  const courtNumber = Number(court);
 
   const hasSubmittedScores =
     submittedTeamAScore !== undefined && submittedTeamBScore !== undefined;
@@ -55,30 +59,64 @@ export default function CourtAssignmentCard({
     setScoreSubmitted(true);
   };
 
+  const isGuestPlayer = (name: string) => guestPlayerIds.includes(name);
+
   const renderPlayerSlot = (name: string | undefined, index: number) => {
     const isCurrentPlayer = name && currentPlayer && name === currentPlayer;
+    const isGuest = name ? isGuestPlayer(name) : false;
     return (
       <div
         key={index}
         className={`flex items-center gap-2 p-2 rounded-lg ${
-          isCurrentPlayer ? 'bg-primary/15 ring-1 ring-primary/40' : 'bg-muted/40'
+          isCurrentPlayer
+            ? 'bg-primary/15 ring-1 ring-primary/40'
+            : isGuest
+            ? 'bg-amber-50 dark:bg-amber-900/20 ring-1 ring-amber-300 dark:ring-amber-700'
+            : 'bg-muted/40'
         }`}
       >
         <div
           className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
             isCurrentPlayer
               ? 'bg-primary text-primary-foreground'
+              : isGuest
+              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
               : 'bg-muted-foreground/20 text-muted-foreground'
           }`}
         >
-          {name ? name.charAt(0).toUpperCase() : '?'}
+          {isGuest ? (
+            <Ghost className="w-3.5 h-3.5" />
+          ) : name ? (
+            name.charAt(0).toUpperCase()
+          ) : (
+            '?'
+          )}
         </div>
-        <span className={`text-sm font-medium truncate ${isCurrentPlayer ? 'text-primary' : 'text-foreground'}`}>
+        <span
+          className={`text-sm font-medium truncate ${
+            isCurrentPlayer
+              ? 'text-primary'
+              : isGuest
+              ? 'text-amber-700 dark:text-amber-400'
+              : 'text-foreground'
+          }`}
+        >
           {name || <span className="text-muted-foreground italic">Empty slot</span>}
         </span>
         {isCurrentPlayer && (
-          <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 h-4 text-primary border-primary/40">
+          <Badge
+            variant="outline"
+            className="ml-auto text-[10px] px-1.5 py-0 h-4 text-primary border-primary/40"
+          >
             You
+          </Badge>
+        )}
+        {isGuest && !isCurrentPlayer && (
+          <Badge
+            variant="outline"
+            className="ml-auto text-[10px] px-1.5 py-0 h-4 text-amber-600 dark:text-amber-400 border-amber-400"
+          >
+            Guest
           </Badge>
         )}
       </div>
@@ -94,10 +132,12 @@ export default function CourtAssignmentCard({
             <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center">
               <span className="text-xs font-bold text-primary">{courtNumber}</span>
             </div>
-            <span className="text-sm font-semibold text-foreground">Court {courtNumber}</span>
+            <span className="text-sm font-semibold text-foreground">
+              Court {courtNumber}
+            </span>
           </div>
           <Badge variant="outline" className="text-xs">
-            {players.filter(Boolean).length}/4
+            {[...teamA, ...teamB].filter(Boolean).length}/4
           </Badge>
         </div>
 
@@ -132,18 +172,24 @@ export default function CourtAssignmentCard({
           <div className="mt-3 pt-3 border-t border-border">
             <div className="flex items-center justify-between bg-muted/40 rounded-lg px-3 py-2">
               <div className="text-center">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Team A</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  Team A
+                </p>
                 <p className="text-xl font-bold text-foreground">{submittedTeamAScore}</p>
               </div>
               <div className="text-muted-foreground font-bold text-sm">—</div>
               <div className="text-center">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Team B</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  Team B
+                </p>
                 <p className="text-xl font-bold text-foreground">{submittedTeamBScore}</p>
               </div>
             </div>
             {submittedTeamAScore !== submittedTeamBScore && (
               <p className="text-xs text-center text-muted-foreground mt-1.5">
-                {submittedTeamAScore! > submittedTeamBScore! ? '🏆 Team A wins' : '🏆 Team B wins'}
+                {submittedTeamAScore! > submittedTeamBScore!
+                  ? '🏆 Team A wins'
+                  : '🏆 Team B wins'}
               </p>
             )}
           </div>
@@ -158,7 +204,10 @@ export default function CourtAssignmentCard({
             </p>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label htmlFor={`score-a-${courtNumber}`} className="text-xs text-muted-foreground">
+                <Label
+                  htmlFor={`score-a-${courtNumber}`}
+                  className="text-xs text-muted-foreground"
+                >
                   Team A Score
                 </Label>
                 <Input
@@ -167,13 +216,16 @@ export default function CourtAssignmentCard({
                   min={0}
                   placeholder="0"
                   value={teamAScore}
-                  onChange={(e) => setTeamAScore(e.target.value)}
+                  onChange={e => setTeamAScore(e.target.value)}
                   disabled={isScoreSubmitting}
                   className="h-9 text-center text-base font-bold"
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor={`score-b-${courtNumber}`} className="text-xs text-muted-foreground">
+                <Label
+                  htmlFor={`score-b-${courtNumber}`}
+                  className="text-xs text-muted-foreground"
+                >
                   Team B Score
                 </Label>
                 <Input
@@ -182,7 +234,7 @@ export default function CourtAssignmentCard({
                   min={0}
                   placeholder="0"
                   value={teamBScore}
-                  onChange={(e) => setTeamBScore(e.target.value)}
+                  onChange={e => setTeamBScore(e.target.value)}
                   disabled={isScoreSubmitting}
                   className="h-9 text-center text-base font-bold"
                 />

@@ -14,6 +14,9 @@ export interface UserProfile {
     workField?: string;
     profilePicture?: string;
 }
+export interface MatchHistory {
+    matches: Array<CompletedMatch>;
+}
 export type Time = bigint;
 export interface CourtAssignment {
     court: Court;
@@ -25,19 +28,26 @@ export interface RoundAssignments {
     round: bigint;
 }
 export type SessionId = string;
+export interface PlayerSearchResult {
+    id: Principal;
+    name: string;
+    mobileNumber: string;
+}
 export type GameCode = string;
-export type MatchId = bigint;
 export type PlayerId = Principal;
 export interface SessionCreationResult {
     state: SessionState;
     sessionId: SessionId;
     config: SessionConfig;
 }
-export interface MatchResult {
-    court: Court;
-    players: Array<PlayerId>;
-    timestamp: Time;
-    outcome: GameOutcome;
+export interface PublicProfile {
+    id: Principal;
+    bio?: string;
+    name: string;
+    workField?: string;
+    profilePicture?: string;
+    winRate?: number;
+    winLossRecord?: [bigint, bigint];
 }
 export interface SessionConfig {
     isRanked: boolean;
@@ -52,20 +62,56 @@ export interface SessionConfig {
     sessionId: SessionId;
     courts: bigint;
 }
+export interface MatchResult {
+    court: Court;
+    players: Array<PlayerId>;
+    timestamp: Time;
+    outcome: GameOutcome;
+}
+export interface CompletedMatch {
+    teamScores: [bigint, bigint];
+    date: Time;
+    court: Court;
+    opponentNames: Array<string>;
+    sessionId: SessionId;
+    outcome: GameOutcome;
+}
+export interface GuestPlayer {
+    isGuest: boolean;
+    name: string;
+    guestId: GuestId;
+}
+export interface Message {
+    text: string;
+    recipient: Principal;
+    sender: Principal;
+    timestamp: Time;
+}
+export interface SessionNotFound {
+    message: string;
+    reason?: string;
+}
+export type GuestId = bigint;
+export type Court = bigint;
 export interface AllGamesRoundAssignments {
     round: bigint;
     roundAssignments: Array<RoundAssignments>;
 }
-export type Court = bigint;
+export interface Conversation {
+    messages: Array<Message>;
+    participant: Principal;
+}
 export interface SessionState {
     assignments: Array<CourtAssignment>;
     isCompleted: boolean;
     previousWaitlist: Array<PlayerId>;
     currentRound: bigint;
+    guestPlayers: Array<GuestPlayer>;
     waitlist: Array<PlayerId>;
     matches: Array<MatchResult>;
     players: Array<PlayerId>;
     allGamesAssignments: Array<AllGamesRoundAssignments>;
+    lastGuestId: GuestId;
     config: SessionConfig;
 }
 export enum GameOutcome {
@@ -84,23 +130,48 @@ export enum UserRole {
     guest = "guest"
 }
 export interface backendInterface {
-    addPlayerToSession(sessionId: SessionId, playerName: string, mobileNumber: string, bio: string | null, profilePicture: string | null, workField: string | null): Promise<void>;
-    allocatePlayers(sessionId: SessionId): Promise<void>;
+    addGuestPlayer(sessionId: string, name: string): Promise<{
+        __kind__: "ok";
+        ok: GuestPlayer;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    addPlayerToSession(sessionId: SessionId, playerId: Principal): Promise<{
+        __kind__: "ok";
+        ok: SessionState;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    createPlayerProfile(name: string): Promise<PlayerId>;
+    createGuestProfile(name: string, mobileNumber: string, bio: string | null, profilePicture: string | null, workField: string | null): Promise<PublicProfile>;
     createSession(courts: bigint, date: string | null, time: string | null, venue: string | null, duration: bigint | null, sessionCode: GameCode, sessionType: SessionType, isRanked: boolean): Promise<SessionCreationResult>;
-    endGame(sessionId: SessionId): Promise<void>;
-    endRound(sessionId: SessionId): Promise<void>;
-    getAllGames(sessionId: SessionId, rotations: bigint, roundsPerRotation: bigint): Promise<Array<AllGamesRoundAssignments>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
-    getSessionGameInfo(sessionId: SessionId): Promise<[string, string | null, string | null, string | null, bigint | null]>;
-    getSessionState(sessionId: SessionId): Promise<SessionState>;
-    getSessionStateByCode(sessionCode: string): Promise<SessionState>;
+    getConversation(otherPrincipal: Principal): Promise<Array<Message>>;
+    getMailbox(): Promise<Array<Conversation>>;
+    getMatchHistory(): Promise<MatchHistory>;
+    getMatchHistoryForPlayer(_requested: Principal): Promise<MatchHistory>;
+    getPublicProfile(requested: Principal): Promise<PublicProfile | null>;
+    getSession(sessionId: SessionId): Promise<{
+        __kind__: "ok";
+        ok: SessionState;
+    } | {
+        __kind__: "err";
+        err: SessionNotFound;
+    }>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
+    getUserProfileAdmin(_user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
-    joinSession(sessionId: SessionId): Promise<void>;
-    joinSessionByCode(sessionCode: string): Promise<void>;
+    joinSession(gameCode: GameCode, guestName: string): Promise<{
+        __kind__: "ok";
+        ok: SessionId;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
-    submitMatchResult(sessionId: SessionId, court: Court, outcome: GameOutcome): Promise<MatchId>;
+    searchPlayersByName(searchTerm: string): Promise<Array<PlayerSearchResult>>;
+    sendMessage(recipient: Principal, text: string): Promise<void>;
 }

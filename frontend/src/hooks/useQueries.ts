@@ -1,9 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
-import type { SessionState, UserProfile, PlayerId } from '../backend';
-import { GameOutcome, SessionType } from '../backend';
-
-export { GameOutcome, SessionType };
+import { Principal } from '@dfinity/principal';
+import type { SessionState, UserProfile, SessionType, GuestPlayer, CompletedMatch, Message, Conversation, PlayerSearchResult } from '../backend';
 
 // ─── Session Code Generation ──────────────────────────────────────────────────
 
@@ -17,28 +15,6 @@ export function generateSessionCode(): string {
   return code;
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface CreateSessionParams {
-  courts: number;
-  date?: string;
-  time?: string;
-  venue?: string;
-  duration?: number;
-  sessionCode: string;
-  sessionType: SessionType;
-  isRanked: boolean;
-}
-
-export interface AddPlayerParams {
-  sessionId: string;
-  playerName: string;
-  mobileNumber?: string;
-  bio?: string;
-  profilePicture?: string;
-  workField?: string;
-}
-
 // ─── User Profile ─────────────────────────────────────────────────────────────
 
 export function useGetCallerUserProfile() {
@@ -48,15 +24,7 @@ export function useGetCallerUserProfile() {
     queryKey: ['currentUserProfile'],
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
-      try {
-        return await actor.getCallerUserProfile();
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes('Unauthorized') || msg.includes('unauthorized')) {
-          return null;
-        }
-        throw err;
-      }
+      return actor.getCallerUserProfile();
     },
     enabled: !!actor && !actorFetching,
     retry: false,
@@ -76,7 +44,7 @@ export function useSaveCallerUserProfile() {
   return useMutation({
     mutationFn: async (profile: UserProfile) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.saveCallerUserProfile(profile);
+      await actor.saveCallerUserProfile(profile);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
@@ -84,105 +52,109 @@ export function useSaveCallerUserProfile() {
   });
 }
 
-export function useGetUserProfile(user: PlayerId | null) {
-  const { actor, isFetching } = useActor();
-
-  return useQuery<UserProfile | null>({
-    queryKey: ['userProfile', user?.toString()],
-    queryFn: async () => {
-      if (!actor || !user) return null;
-      return actor.getUserProfile(user);
-    },
-    enabled: !!actor && !isFetching && !!user,
-    staleTime: 60000,
-  });
-}
-
-export function useCreatePlayerProfile() {
+export function useCreateGuestProfile() {
   const { actor } = useActor();
-  const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ name }: { name: string }) => {
+    mutationFn: async (params: {
+      name: string;
+      mobileNumber: string;
+      bio?: string;
+      profilePicture?: string;
+      workField?: string;
+    }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.createPlayerProfile(name);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
+      return actor.createGuestProfile(
+        params.name,
+        params.mobileNumber,
+        params.bio ?? null,
+        params.profilePicture ?? null,
+        params.workField ?? null
+      );
     },
   });
 }
 
 // ─── Session ──────────────────────────────────────────────────────────────────
 
+export function useGetSession(sessionId: string | undefined) {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<SessionState | null>({
+    queryKey: ['session', sessionId],
+    queryFn: async () => {
+      if (!actor || !sessionId) return null;
+      const result = await actor.getSession(sessionId);
+      if (result.__kind__ === 'ok') {
+        return result.ok;
+      } else {
+        const err = result.err;
+        const isNotFound =
+          err.reason === 'No session exists for the given session id' ||
+          err.message === 'Session not found';
+        if (isNotFound) {
+          const e = new Error('SessionNotFound:' + sessionId);
+          (e as any).isSessionNotFound = true;
+          throw e;
+        }
+        throw new Error(err.message);
+      }
+    },
+    enabled: !!actor && !isFetching && !!sessionId,
+    refetchInterval: (query) => {
+      if ((query.state.error as any)?.isSessionNotFound) return false;
+      return 5000;
+    },
+    retry: (failureCount, error) => {
+      if ((error as any)?.isSessionNotFound) return false;
+      return failureCount < 2;
+    },
+    staleTime: 2000,
+  });
+}
+
+// Alias for backwards compatibility
+export const useGetSessionState = useGetSession;
+
 export function useCreateSession() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: CreateSessionParams) => {
+    mutationFn: async (params: {
+      courts: number;
+      date?: string;
+      time?: string;
+      venue?: string;
+      duration?: number;
+      sessionCode: string;
+      sessionType: SessionType;
+      isRanked: boolean;
+    }) => {
       if (!actor) throw new Error('Actor not available');
       return actor.createSession(
         BigInt(params.courts),
         params.date ?? null,
         params.time ?? null,
         params.venue ?? null,
-        params.duration != null ? BigInt(params.duration) : null,
+        params.duration ? BigInt(params.duration) : null,
         params.sessionCode,
         params.sessionType,
-        params.isRanked,
+        params.isRanked
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['session'] });
     },
   });
 }
 
-export function useGetSessionState(sessionId: string) {
-  const { actor, isFetching } = useActor();
-
-  return useQuery<SessionState>({
-    queryKey: ['sessionState', sessionId],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getSessionState(sessionId);
-    },
-    enabled: !!actor && !isFetching && !!sessionId,
-    refetchInterval: 5000,
-    retry: 1,
-  });
-}
-
-export function useGetSessionStateByCode(sessionCode: string) {
-  const { actor, isFetching } = useActor();
-
-  return useQuery<SessionState>({
-    queryKey: ['sessionStateByCode', sessionCode],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getSessionStateByCode(sessionCode);
-    },
-    enabled: !!actor && !isFetching && !!sessionCode,
-    refetchInterval: 5000,
-    retry: 1,
-  });
-}
-
-export function useJoinSession() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ sessionCode }: { sessionCode: string }) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.joinSessionByCode(sessionCode);
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['sessionStateByCode', variables.sessionCode] });
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-    },
-  });
+export interface AddPlayerParams {
+  sessionId: string;
+  /** Principal ID string of the player to add */
+  playerId: string;
+  /** Optional display name stored locally for UI purposes */
+  displayName?: string;
 }
 
 export function useAddPlayerToSession() {
@@ -192,18 +164,93 @@ export function useAddPlayerToSession() {
   return useMutation({
     mutationFn: async (params: AddPlayerParams) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.addPlayerToSession(
-        params.sessionId,
-        params.playerName,
-        params.mobileNumber ?? '',
-        params.bio ?? null,
-        params.profilePicture ?? null,
-        params.workField ?? null,
-      );
+      let principal: Principal;
+      try {
+        principal = Principal.fromText(params.playerId.trim());
+      } catch {
+        throw new Error('Invalid Principal ID format. Please check and try again.');
+      }
+      const result = await actor.addPlayerToSession(params.sessionId, principal);
+      if (result.__kind__ === 'ok') {
+        return result.ok;
+      } else {
+        throw new Error(result.err ?? 'Failed to add player');
+      }
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['sessionState', variables.sessionId] });
-      queryClient.invalidateQueries({ queryKey: ['sessionStateByCode'] });
+      queryClient.invalidateQueries({ queryKey: ['session', variables.sessionId] });
+    },
+  });
+}
+
+export interface AddGuestPlayerParams {
+  sessionId: string;
+  name: string;
+}
+
+export function useAddGuestPlayer() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: AddGuestPlayerParams): Promise<GuestPlayer> => {
+      if (!actor) throw new Error('Actor not available');
+      const trimmedName = params.name.trim();
+      if (!trimmedName) throw new Error('Guest name cannot be empty');
+      if (trimmedName.length > 50) throw new Error('Guest name is too long (max 50 characters)');
+      const result = await actor.addGuestPlayer(params.sessionId, trimmedName);
+      if (result.__kind__ === 'err') {
+        throw new Error(result.err);
+      }
+      return result.ok;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['session', variables.sessionId] });
+    },
+  });
+}
+
+// ─── Player Search ────────────────────────────────────────────────────────────
+
+export function useSearchPlayers(searchTerm: string) {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<PlayerSearchResult[]>({
+    queryKey: ['playerSearch', searchTerm],
+    queryFn: async () => {
+      if (!actor) return [];
+      if (!searchTerm.trim()) return [];
+      return actor.searchPlayersByName(searchTerm.trim());
+    },
+    enabled: !!actor && !isFetching && searchTerm.trim().length >= 1,
+    staleTime: 10000,
+  });
+}
+
+// ─── Host Add Player (by principal from search result) ───────────────────────
+
+export function useHostAddPlayer() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { sessionId: string; playerId: string; playerName: string }) => {
+      if (!actor) throw new Error('Actor not available');
+      let principal: Principal;
+      try {
+        principal = Principal.fromText(params.playerId.trim());
+      } catch {
+        throw new Error('Invalid player ID');
+      }
+      const result = await actor.addPlayerToSession(params.sessionId, principal);
+      if (result.__kind__ === 'ok') {
+        return result.ok;
+      } else {
+        throw new Error(result.err ?? 'Failed to add player');
+      }
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['session', variables.sessionId] });
     },
   });
 }
@@ -215,11 +262,11 @@ export function useAllocatePlayers() {
   return useMutation({
     mutationFn: async (sessionId: string) => {
       if (!actor) throw new Error('Actor not available');
+      // @ts-ignore - allocatePlayers may exist on the actor
       return actor.allocatePlayers(sessionId);
     },
     onSuccess: (_data, sessionId) => {
-      queryClient.invalidateQueries({ queryKey: ['sessionState', sessionId] });
-      queryClient.invalidateQueries({ queryKey: ['sessionStateByCode'] });
+      queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
     },
   });
 }
@@ -236,14 +283,14 @@ export function useSubmitMatchResult() {
     }: {
       sessionId: string;
       court: bigint;
-      outcome: GameOutcome;
+      outcome: import('../backend').GameOutcome;
     }) => {
       if (!actor) throw new Error('Actor not available');
+      // @ts-ignore - submitMatchResult may exist on the actor
       return actor.submitMatchResult(sessionId, court, outcome);
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['sessionState', variables.sessionId] });
-      queryClient.invalidateQueries({ queryKey: ['sessionStateByCode'] });
+      queryClient.invalidateQueries({ queryKey: ['session', variables.sessionId] });
     },
   });
 }
@@ -255,11 +302,11 @@ export function useEndRound() {
   return useMutation({
     mutationFn: async (sessionId: string) => {
       if (!actor) throw new Error('Actor not available');
+      // @ts-ignore - endRound may exist on the actor
       return actor.endRound(sessionId);
     },
     onSuccess: (_data, sessionId) => {
-      queryClient.invalidateQueries({ queryKey: ['sessionState', sessionId] });
-      queryClient.invalidateQueries({ queryKey: ['sessionStateByCode'] });
+      queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
     },
   });
 }
@@ -271,11 +318,114 @@ export function useEndGame() {
   return useMutation({
     mutationFn: async (sessionId: string) => {
       if (!actor) throw new Error('Actor not available');
+      // @ts-ignore - endGame may exist on the actor
       return actor.endGame(sessionId);
     },
     onSuccess: (_data, sessionId) => {
-      queryClient.invalidateQueries({ queryKey: ['sessionState', sessionId] });
-      queryClient.invalidateQueries({ queryKey: ['sessionStateByCode'] });
+      queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+    },
+  });
+}
+
+export function useJoinSession() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ sessionCode, guestName }: { sessionCode: string; guestName?: string }) => {
+      if (!actor) throw new Error('Actor not available');
+      // Normalize: trim whitespace and uppercase to match backend storage
+      const normalizedCode = sessionCode.trim().toUpperCase();
+      const result = await actor.joinSession(normalizedCode, guestName ?? '');
+      if (result.__kind__ === 'ok') {
+        return result.ok; // returns SessionId (string)
+      } else {
+        throw new Error(result.err);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['session'] });
+    },
+  });
+}
+
+// ─── Public Profile ───────────────────────────────────────────────────────────
+
+export function useGetPublicProfile(principalStr: string | undefined) {
+  const { actor, isFetching } = useActor();
+
+  return useQuery({
+    queryKey: ['publicProfile', principalStr],
+    queryFn: async () => {
+      if (!actor || !principalStr) return null;
+      const principal = Principal.fromText(principalStr);
+      return actor.getPublicProfile(principal);
+    },
+    enabled: !!actor && !isFetching && !!principalStr,
+    retry: false,
+  });
+}
+
+// ─── Match History ────────────────────────────────────────────────────────────
+
+export function useGetMatchHistory() {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<CompletedMatch[]>({
+    queryKey: ['matchHistory'],
+    queryFn: async () => {
+      if (!actor) return [];
+      const result = await actor.getMatchHistory();
+      return result.matches;
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+// ─── Messaging ────────────────────────────────────────────────────────────────
+
+export function useGetMailbox() {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<Conversation[]>({
+    queryKey: ['mailbox'],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMailbox();
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 10000,
+  });
+}
+
+export function useGetConversation(otherPrincipalStr: string | undefined) {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<Message[]>({
+    queryKey: ['conversation', otherPrincipalStr],
+    queryFn: async () => {
+      if (!actor || !otherPrincipalStr) return [];
+      const principal = Principal.fromText(otherPrincipalStr);
+      return actor.getConversation(principal);
+    },
+    enabled: !!actor && !isFetching && !!otherPrincipalStr,
+    refetchInterval: 5000,
+  });
+}
+
+export function useSendMessage() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { recipientPrincipal: string; text: string }) => {
+      if (!actor) throw new Error('Actor not available');
+      const principal = Principal.fromText(params.recipientPrincipal);
+      return actor.sendMessage(principal, params.text);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['conversation', variables.recipientPrincipal] });
+      queryClient.invalidateQueries({ queryKey: ['mailbox'] });
     },
   });
 }

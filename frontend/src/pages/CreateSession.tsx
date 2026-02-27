@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, CheckCircle, Loader2, Shuffle, RotateCcw, Layers, Crown } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Shuffle, RotateCcw, Layers, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -74,7 +74,7 @@ export default function CreateSession() {
 
   const handleGoToDashboard = () => {
     if (createdSessionId) {
-      navigate({ to: '/session/$sessionId/host', params: { sessionId: createdSessionId } });
+      navigate({ to: '/host/$sessionId', params: { sessionId: createdSessionId } });
     }
   };
 
@@ -118,7 +118,6 @@ export default function CreateSession() {
               <Card className="border-border">
                 <CardContent className="pt-4 pb-3">
                   <div className="space-y-1.5 text-sm">
-                    {/* Game Type & Ranked */}
                     <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Game Type</span>
                       <div className="flex items-center gap-1.5">

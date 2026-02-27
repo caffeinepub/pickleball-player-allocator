@@ -1,86 +1,97 @@
-/**
- * LocalStorage helpers for persisting session and player data.
- */
-
 export interface StoredPlayerProfile {
-  principalId?: string;
   name: string;
-  mobileNumber?: string;
+  mobileNumber: string;
   bio?: string;
-  profilePicture?: string;
   workField?: string;
+  profilePicture?: string;
+  principalId?: string;
 }
 
 export interface StoredSession {
   sessionId: string;
-  sessionCode: string;
+  sessionCode?: string;
   role: 'host' | 'player';
-  /** @deprecated use role === 'host' instead */
+  /** @deprecated use role === 'host' */
   isHost?: boolean;
 }
 
-const PLAYER_PROFILE_KEY = 'pickleball_player_profile';
-const CURRENT_SESSION_KEY = 'pickleball_current_session';
-const SESSION_PLAYER_NAMES_KEY = 'pickleball_session_player_names';
-
-// ─── Player Profile ───────────────────────────────────────────────────────────
-
-export function getPlayerProfile(): StoredPlayerProfile | null {
-  try {
-    const raw = localStorage.getItem(PLAYER_PROFILE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredPlayerProfile;
-  } catch {
-    return null;
-  }
-}
+const PROFILE_KEY = 'ballclub_player_profile';
+const SESSION_KEY = 'ballclub_current_session';
+const SESSION_PLAYER_NAMES_KEY = 'ballclub_session_player_names';
 
 export function savePlayerProfile(profile: StoredPlayerProfile): void {
   try {
-    localStorage.setItem(PLAYER_PROFILE_KEY, JSON.stringify(profile));
-  } catch (err) {
-    console.warn('Failed to save player profile to localStorage:', err);
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  } catch (e) {
+    console.warn('Failed to save profile to localStorage', e);
+  }
+}
+
+export function getPlayerProfile(): StoredPlayerProfile | null {
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as StoredPlayerProfile;
+  } catch (e) {
+    console.warn('Failed to read profile from localStorage', e);
+    return null;
   }
 }
 
 export function clearPlayerProfile(): void {
   try {
-    localStorage.removeItem(PLAYER_PROFILE_KEY);
-  } catch {
-    // ignore
-  }
-}
-
-// ─── Current Session ──────────────────────────────────────────────────────────
-
-export function getCurrentSession(): StoredSession | null {
-  try {
-    const raw = localStorage.getItem(CURRENT_SESSION_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredSession;
-    // Back-compat: if old format had isHost but no role, derive role
-    if (!parsed.role && parsed.isHost !== undefined) {
-      parsed.role = parsed.isHost ? 'host' : 'player';
-    }
-    return parsed;
-  } catch {
-    return null;
+    localStorage.removeItem(PROFILE_KEY);
+  } catch (e) {
+    console.warn('Failed to clear profile from localStorage', e);
   }
 }
 
 export function saveCurrentSession(session: StoredSession): void {
   try {
-    localStorage.setItem(CURRENT_SESSION_KEY, JSON.stringify(session));
-  } catch (err) {
-    console.warn('Failed to save current session to localStorage:', err);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } catch (e) {
+    console.warn('Failed to save session to localStorage', e);
+  }
+}
+
+export function getCurrentSession(): StoredSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredSession;
+    // Backward compat: if role is missing, derive from isHost
+    if (!parsed.role) {
+      parsed.role = parsed.isHost ? 'host' : 'player';
+    }
+    return parsed;
+  } catch (e) {
+    console.warn('Failed to read session from localStorage', e);
+    return null;
   }
 }
 
 export function clearCurrentSession(): void {
   try {
-    localStorage.removeItem(CURRENT_SESSION_KEY);
-  } catch {
-    // ignore
+    localStorage.removeItem(SESSION_KEY);
+  } catch (e) {
+    console.warn('Failed to clear session from localStorage', e);
+  }
+}
+
+/**
+ * Clears all session-related data from localStorage when a session is confirmed
+ * to no longer exist (e.g. SessionNotFound error). Prevents the app from
+ * repeatedly trying to load a session that is gone.
+ */
+export function clearInvalidSession(sessionId: string): void {
+  try {
+    const current = getCurrentSession();
+    if (current?.sessionId === sessionId) {
+      clearCurrentSession();
+    }
+    clearSessionPlayerNames(sessionId);
+  } catch (e) {
+    console.warn('Failed to clear invalid session data', e);
   }
 }
 
@@ -102,10 +113,10 @@ export function setSessionPlayerName(sessionId: string, playerIndex: number, nam
     existing[playerIndex] = name;
     localStorage.setItem(
       `${SESSION_PLAYER_NAMES_KEY}_${sessionId}`,
-      JSON.stringify(existing)
+      JSON.stringify(existing),
     );
-  } catch (err) {
-    console.warn('Failed to save session player name to localStorage:', err);
+  } catch (e) {
+    console.warn('Failed to save session player name to localStorage', e);
   }
 }
 
